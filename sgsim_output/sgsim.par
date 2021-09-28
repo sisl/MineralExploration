@@ -17,10 +17,10 @@ parameters/example_porosity.txt                  -  file with ref. dist distribu
 sgsim_output/sgsim.dbg                     -file for debugging output
 sgsim_output/sgsim.out                     -file for simulation output
 1                             -number of realizations to generate
-20    0.5    1              -nx,xmn,xsiz
-20    0.5    1              -ny,ymn,ysiz
+80    0.5    1              -nx,xmn,xsiz
+80    0.5    1              -ny,ymn,ysiz
 1    0.5    1              -nz,zmn,zsiz
-4687369                         -random number seed
+3781244                         -random number seed
 0     8                       -min and max original data for sim
 12                            -number of simulated nodes to use
 1                             -assign data to nodes(0=no, 1=yes)

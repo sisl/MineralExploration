@@ -35,7 +35,7 @@ function data_to_string(data::RockObservations)
     """
     #TODO: Deal with cell-centered offsets?
     for i=1:length(data)
-        str = string(str, data.coordinates[1,i] - 1, " ", data.coordinates[2,i] - 1, " 0.5 ", data.porosity[i], "\n")
+        str = string(str, data.coordinates[1,i] - 1, " ", data.coordinates[2,i] - 1, " 0.5 ", data.ore_quals[i], "\n")
     end
     str
 end
@@ -90,23 +90,6 @@ end
 
 # run_quiet =
 
-function sample_sgsim(p::GSLIBDistribution, dir="sgsim_output/")
-    # Write the param file
-    fn = write_params_to_file(p, 1; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
-
-    # Run sgsim
-    run(`sgsim $fn`)
-
-    # Load the results and return
-    vals = CSV.File("$(dir)sgsim.out",header=3) |> CSV.Tables.matrix
-    # reshape(vals, p.n..., N) # For multiple samples
-
-    poro_2D = reshape(vals, p.n)
-    porosity = repeat(poro_2D, outer=(1, 1, 8))
-    Kz = Kxy = porosity.^3.0*(1e-5).^2.0./(0.81*72.0*(1.0.-porosity).^2.0)
-    return porosity, Kxy, Kz
-end
-
 function Base.rand(p::GSLIBDistribution, dir="sgsim_output/"; silent::Bool=true)
     # Write the param file
     if silent
@@ -123,12 +106,11 @@ function Base.rand(p::GSLIBDistribution, dir="sgsim_output/"; silent::Bool=true)
     # reshape(vals, p.n..., N) # For multiple samples
 
     poro_2D = reshape(vals, p.n)
-    porosity = repeat(poro_2D, outer=(1, 1, 8))
-    Kz = Kxy = porosity.^3.0*(1e-5).^2.0./(0.81*72.0*(1.0.-porosity).^2.0)
+    ore_quals = repeat(poro_2D, outer=(1, 1, 8))
     if silent
         redirect_stdout(stdout_orig)
     end
-    return porosity, Kxy, Kz
+    return ore_quals
 end
 
 Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, dir::String="sgsim_output/") = Base.rand(p, dir)

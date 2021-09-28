@@ -4,12 +4,14 @@ using POMDPs
 using POMDPModelTools
 using Random
 using Plots
+using CSV
 using Parameters
 using StatsBase
+using Distributions
 
 export
-        CCSState,
-        CCSObservation,
+        MEState,
+        MEObservation,
         RockObservations
 include("common.jl")
 
@@ -19,22 +21,15 @@ include("gslib.jl")
 
 
 export
-        RockObservations,
-        CCSState,
-        CCSObservation,
-        CCSPOMDP,
-        POMDPSpecification,
+        MineralExplorationPOMDP,
+        MEInitStateDist,
         initialize_data!
 include("pomdp.jl")
 
-export
-        ReservoirBelief,
-        ReservoirBeliefUpdater,
-        solve_gp
-include("beliefs.jl")
-
-export
-        TestPOMDP2D
-include("2d_pomdp_test.jl")
+# export
+#         ReservoirBelief,
+#         ReservoirBeliefUpdater,
+#         solve_gp
+# include("beliefs.jl")
 
 end
