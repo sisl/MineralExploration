@@ -2,6 +2,7 @@ module MineralExploration
 
 using POMDPs
 using POMDPModelTools
+using ParticleFilters
 using Random
 using Plots
 using CSV
@@ -26,10 +27,9 @@ export
         initialize_data!
 include("pomdp.jl")
 
-# export
-#         ReservoirBelief,
-#         ReservoirBeliefUpdater,
-#         solve_gp
-# include("beliefs.jl")
+export
+        MEBelief,
+        MEBeliefUpdater
+include("beliefs.jl")
 
 end

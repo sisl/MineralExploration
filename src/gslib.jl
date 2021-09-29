@@ -40,8 +40,10 @@ function data_to_string(data::RockObservations)
     str
 end
 
-function params_to_string(p::GSLIBDistribution, data_file, N, dir)
-    seed = rand(1:10000000)
+function params_to_string(p::GSLIBDistribution, data_file, N, dir, seed=nothing)
+    if seed == nothing
+        seed = rand(1:10000000)
+    end
     """
     Parameters for SGSIM
 ********************
@@ -90,13 +92,13 @@ end
 
 # run_quiet =
 
-function Base.rand(p::GSLIBDistribution, dir="sgsim_output/"; silent::Bool=true)
+function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent::Bool=true)
     # Write the param file
     if silent
         stdout_orig = stdout
         redirect_stdout()
     end
-    fn = write_params_to_file(p, 1; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
+    fn = write_params_to_file(p, n; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
 
     # Run sgsim
     run(`sgsim $fn`)
@@ -113,7 +115,4 @@ function Base.rand(p::GSLIBDistribution, dir="sgsim_output/"; silent::Bool=true)
     return ore_quals
 end
 
-Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, dir::String="sgsim_output/") = Base.rand(p, dir)
-
-
-# Random.rand(rng::AbstractRNG, p::GSLIBDistribution, ::Random.SamplerType{GSLIBDistribution}) = Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution)
+Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, n::Int64=1, dir::String="sgsim_output/") = Base.rand(p, n, dir)

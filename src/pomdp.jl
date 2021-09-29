@@ -7,7 +7,7 @@
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
-    obs_noise_std::Float64 = 0.01
+    obs_noise_std::Float64 = 0.05
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
@@ -45,7 +45,7 @@ end
 function sample_initial(p::MineralExplorationPOMDP, n::Integer)
     coords, coords_array = sample_coords(p.grid_dim, n)
     dist = GSLIBDistribution(p)
-    state = rand(dist, silent=false)
+    state = rand(dist, silent=true)
     ore_quality = state[coords]
     return RockObservations(ore_quality, coords_array)
 end
@@ -79,7 +79,7 @@ end
 
 POMDPs.discount(::MineralExplorationPOMDP) = 0.99
 POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = size(s.bore_coords)[2] >= m.max_bores ||
-                                                                stopped
+                                                                s.stopped
 
 struct MEInitStateDist
     gp_distribution::GSLIBDistribution
@@ -132,6 +132,7 @@ end
 Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
 
 function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a, rng)
+    stopped = s.stopped
     if a == :stop
         obs = MEObservation(nothing)
         r = 0.0
@@ -140,7 +141,8 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a, rng)
     else
         ore_obs = s.ore_map[a[1], a[2], 1]
         obs = MEObservation(ore_obs)
-        r = obs >= m.massive_threshold ? m.strike_reward : 0.0
+
+        r = ore_obs >= m.massive_threshold ? m.strike_reward : 0.0
         r -= m.drill_cost
         a = reshape(Int64[a[1] a[2]], 2, 1)
         coords_p = [s.bore_coords a]
@@ -172,19 +174,28 @@ end
 function POMDPs.actions(m::MineralExplorationPOMDP, b)
     action_set = Set(POMDPs.actions(m))
     n_initial = length(m.initial_data)
-    n_obs = size(b.rock_belief.data.coordinates)[2] - n_initial
-    for i=1:n_obs
-        coord = b.rock_belief.data.coordinates[:, i + n_initial]
-        x = Int64(coord[1])
-        y = Int64(coord[2])
-        keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
-        setdiff!(action_set, keepout)
+    if b.bore_coords != nothing
+        n_obs = size(b.bore_coords)[2] - n_initial
+        for i=1:n_obs
+            coord = b.bore_coords[:, i + n_initial]
+            x = Int64(coord[1])
+            y = Int64(coord[2])
+            keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
+            setdiff!(action_set, keepout)
+        end
     end
     collect(action_set)
 end
 
-# For POMCPOW
-function POMDPModelTools.obs_weight(p::MineralExplorationPOMDP, s, a, sp, o)
-    throw("POMDPModelTools.obs_weight function not implemented for $(typeof(m)) type")
-    return weight
+function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
+                    a::Union{Symbol, CartesianIndex}, sp::MEState, o::MEObservation)
+    w = 0.0
+    if a == :stop
+        w = o.ore_quality == nothing ? 1.0 : 0.0
+    else
+        ore = s.ore_map[a]
+        dist = Normal(ore, m.obs_noise_std)
+        w = pdf(dist, o.ore_quality)
+    end
+    return w
 end
