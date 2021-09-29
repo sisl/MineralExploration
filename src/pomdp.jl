@@ -1,17 +1,22 @@
 
-@with_kw struct MineralExplorationPOMDP <: POMDP{MEState, CartesianIndex, MEObservation}
+@with_kw struct MineralExplorationPOMDP <: POMDP{MEState, Union{CartesianIndex, Symbol}, MEObservation}
     reservoir_dims::Tuple{Float64, Float64, Float64} = (2000.0, 2000.0, 30.0) #  lat x lon x thick in meters
     grid_dim::Tuple{Int64, Int64, Int64} = (80, 80, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
     time_interval::Float64 = 1.0 # Minimum time between bores (in months)
     initial_data::RockObservations = RockObservations() # Initial rock observations
-    delta::Int64 = 2 # Minimum distance between wells (grid coordinates)
+    delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
+    drill_cost::Float64 = 0.1
+    strike_reward::Float64 = 1.0
     variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     nugget::Tuple = (1, 0)
-    gp_weight::Float64 = 0.25
-    mainbody_weight::Float64 = 0.7
-    mainbody_var::Matrix{Float64} = [20.0 0.0; 0.0 20.0]
+    gp_weight::Float64 = 0.35
+    mainbody_weight::Float64 = 0.45
+    mainbody_loc::Vector{Float64} = [40.0, 40.0]
+    mainbody_var_min::Float64 = 40.0
+    mainbody_var_max::Float64 = 80.0
+    massive_threshold::Float64 = 0.7
     rng::AbstractRNG = Random.GLOBAL_RNG
 end
 
@@ -79,29 +84,34 @@ struct MEInitStateDist
     gp_distribution::GSLIBDistribution
     gp_weight::Float64
     mainbody_weight::Float64
-    mainbody_var::Matrix{Float64}
+    mainbody_loc::Vector{Float64}
+    mainbody_var_max::Float64
+    mainbody_var_min::Float64
+    massive_thresh::Float64
     rng::AbstractRNG
 end
 
 function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP)
     reservoir_dist = GSLIBDistribution(m)
     MEInitStateDist(reservoir_dist, m.gp_weight, m.mainbody_weight,
-                    m.mainbody_var, m.rng)
+                    m.mainbody_loc, m.mainbody_var_max, m.mainbody_var_min,
+                    m.massive_threshold, m.rng)
 end
 
 function Base.rand(d::MEInitStateDist)
     gp_ore_map = Base.rand(d.rng, d.gp_distribution)
-    # max_gp = maximum(gp_ore_map)
-    max_gp = mean(gp_ore_map)
-    gp_ore_map ./= max_gp
+    mean_gp = mean(gp_ore_map)
+    gp_ore_map ./= mean_gp
     gp_ore_map .*= d.gp_weight
+
+    clamp!(gp_ore_map, 0.0, d.massive_thresh)
 
     x_dim = d.gp_distribution.grid_dims[1]
     y_dim = d.gp_distribution.grid_dims[2]
-    x = float(rand([20:x_dim - 20;]))
-    y = float(rand([20:y_dim - 20;]))
     lode_map = zeros(x_dim, y_dim)
-    mvnorm = MvNormal([x, y], d.mainbody_var)
+    mainbody_var = rand(d.rng)*(d.mainbody_var_max - d.mainbody_var_min) + d.mainbody_var_min
+    cov = [mainbody_var 0.0; 0.0 mainbody_var]
+    mvnorm = MvNormal(d.mainbody_loc, cov)
     for i = 1:x_dim
         for j = 1:y_dim
             lode_map[i, j] = pdf(mvnorm, [float(i), float(j)])
@@ -115,33 +125,59 @@ function Base.rand(d::MEInitStateDist)
     ore_map = lode_map + gp_ore_map
     clamp!(ore_map, 0.0, 1.0)
     MEState(ore_map,
-            d.gp_distribution.data.coordinates, nothing, false)
+            d.gp_distribution.data.coordinates, false)
 end
 
-function gen_reward(s::MEState, a::CartesianIndex, sp::MEState)
-    return 0.0
-end # TODO
-
-
-### Implement for POMDP types
-function POMDPs.gen(m::MineralExplorationPOMDP, s, a, rng)
-    throw("POMDPs.gen function not implemented for $(typeof(m)) type")
-    return (sp=sp, o=o, r=r)
+function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a, rng)
+    if a == :stop
+        obs = MEObservation(nothing)
+        r = 0.0
+        coords_p = s.bore_coords
+        stopped = true
+    else
+        ore_obs = s.ore_map[a[1], a[2], 1]
+        obs = MEObservation(ore_obs)
+        r = obs >= m.massive_threshold ? m.strike_reward : 0.0
+        r -= m.drill_cost
+        a = reshape(Int64[a[1] a[2]], 2, 1)
+        coords_p = [s.bore_coords a]
+    end
+    sp = MEState(s.ore_map, coords_p, stopped)
+    return (sp=sp, o=obs, r=r)
 end
 
 function POMDPs.actions(m::MineralExplorationPOMDP)
-    throw("POMDPs.actions function not implemented for $(typeof(m)) type")
+    idxs = CartesianIndices(m.grid_dim[1:2])
+    bore_actions = reshape(collect(idxs), prod(m.grid_dim[1:2]))
+    actions = Union{CartesianIndex{2}, Symbol}[:stop]
+    append!(actions, bore_actions)
     return actions
 end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
-    throw("POMDPs.actions function not implemented for $(typeof(m)) type")
-    return actions
+    action_set = Set(POMDPs.actions(m))
+    for i=1:size(s.bore_coords)[2]
+        coord = s.bore_coords[:, i]
+        x = Int64(coord[1])
+        y = Int64(coord[2])
+        keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
+        setdiff!(action_set, keepout)
+    end
+    collect(action_set)
 end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, b)
-    throw("POMDPs.actions function not implemented for $(typeof(m)) type")
-    return actions
+    action_set = Set(POMDPs.actions(m))
+    n_initial = length(m.initial_data)
+    n_obs = size(b.rock_belief.data.coordinates)[2] - n_initial
+    for i=1:n_obs
+        coord = b.rock_belief.data.coordinates[:, i + n_initial]
+        x = Int64(coord[1])
+        y = Int64(coord[2])
+        keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
+        setdiff!(action_set, keepout)
+    end
+    collect(action_set)
 end
 
 # For POMCPOW

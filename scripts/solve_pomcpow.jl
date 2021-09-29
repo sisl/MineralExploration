@@ -24,8 +24,14 @@ s0 = rand(ds0)
 # solver = POMCPOWSolver(tree_queries=100, check_repeat_obs=false, check_repeat_act=true)
 # planner = POMDPs.solve(solver, m)
 #
-fig = heatmap(s0.ore_map[:,:,1], title="True Porosity Field", fill=true, clims=(0.0, 1.0))
-savefig(fig, "mineral.png")
+fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
+# savefig(fig, "mineral.png")
+display(fig)
+
+s_massive = s0.ore_map[:,:,1] .>= 0.7
+
+fig = heatmap(s_massive, title="Massive Ore Deposits", fill=true, clims=(0.0, 1.0))
+# savefig(fig, "mineral.png")
 display(fig)
 
 # # println("Entering Simulation...")

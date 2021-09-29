@@ -1,7 +1,6 @@
 struct MEState
     ore_map::Array{Float64}  # 3D array of ore_quality values for each grid-cell
     bore_coords::Union{Nothing, Matrix{Int64}} # 2D grid cell location of each well
-    obs_bore_coord::Union{Nothing, Vector{Int64}}
     stopped::Bool # Whether or not STOP action has been taken
 end
 
@@ -15,5 +14,5 @@ function Base.length(obs::RockObservations)
 end
 
 struct MEObservation
-    ore_quality::Float64
+    ore_quality::Union{Float64, Nothing}
 end
