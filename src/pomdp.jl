@@ -1,19 +1,20 @@
 
 @with_kw struct MineralExplorationPOMDP <: POMDP{MEState, Union{CartesianIndex, Symbol}, MEObservation}
     reservoir_dims::Tuple{Float64, Float64, Float64} = (2000.0, 2000.0, 30.0) #  lat x lon x thick in meters
-    grid_dim::Tuple{Int64, Int64, Int64} = (80, 80, 1) #  dim x dim grid size
+    grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
     time_interval::Float64 = 1.0 # Minimum time between bores (in months)
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
+    obs_noise_std::Float64 = 0.01
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     nugget::Tuple = (1, 0)
     gp_weight::Float64 = 0.35
     mainbody_weight::Float64 = 0.45
-    mainbody_loc::Vector{Float64} = [40.0, 40.0]
+    mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
     mainbody_var_max::Float64 = 80.0
     massive_threshold::Float64 = 0.7
@@ -127,6 +128,8 @@ function Base.rand(d::MEInitStateDist)
     MEState(ore_map,
             d.gp_distribution.data.coordinates, false)
 end
+
+Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
 
 function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a, rng)
     if a == :stop

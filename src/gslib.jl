@@ -114,3 +114,6 @@ function Base.rand(p::GSLIBDistribution, dir="sgsim_output/"; silent::Bool=true)
 end
 
 Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, dir::String="sgsim_output/") = Base.rand(p, dir)
+
+
+# Random.rand(rng::AbstractRNG, p::GSLIBDistribution, ::Random.SamplerType{GSLIBDistribution}) = Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution)

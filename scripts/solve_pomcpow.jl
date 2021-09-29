@@ -4,20 +4,21 @@ using POMDPs
 using POMDPSimulators
 using POMCPOW
 using Plots
+using ParticleFilters
 
 using MineralExploration
-
-DIMS = (80, 80, 1)
 
 N_INITIAL = 3
 MAX_BORES = 5
 
-m = MineralExplorationPOMDP(grid_dim=DIMS, max_bores=MAX_BORES)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
+up = BootstrapFilter(m, 1000)
+b0 = POMDPs.initialize_belief(up, ds0)
 # up = ReservoirBeliefUpdater(spec)
 # b0 = initialize_belief(up, s0)
 #
