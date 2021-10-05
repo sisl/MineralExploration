@@ -70,7 +70,7 @@ end
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::Union{Symbol, CartesianIndex}, o::MEObservation)
     if a == :stop
-        bp_coords = b.bore_coodrs
+        bp_coords = b.bore_coords
         bp_stopped = true
     else
         if b.bore_coords == nothing
@@ -117,10 +117,39 @@ function summarize(b::MEBelief)
     return (μ, σ²)
 end
 
-function Plots.plot(b::MEBelief) # TODO add well plots
+function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
+    action_set = Set(POMDPs.actions(m))
+    n_initial = length(m.initial_data)
+    if b.bore_coords != nothing
+        n_obs = size(b.bore_coords)[2] - n_initial
+        for i=1:n_obs
+            coord = b.bore_coords[:, i + n_initial]
+            x = Int64(coord[1])
+            y = Int64(coord[2])
+            keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
+            setdiff!(action_set, keepout)
+        end
+    end
+    collect(action_set)
+end
+
+function Plots.plot(b::MEBelief, t=nothing) # TODO add well plots
     mean, var = summarize(b)
-    fig1 = heatmap(mean[:,:,1], title="Belief Mean", fill=true, clims=(0.0, 1.0))
-    fig2 = heatmap(sqrt.(var[:,:,1]), title="Belief StdDev", fill=true, clims=(0.0, 0.25))
+    if t == nothing
+        mean_title = "Belief Mean"
+        std_title = "Belief StdDev"
+    else
+        mean_title = "Belief Mean t = $t"
+        std_title = "Belief StdDev t = $t"
+    end
+    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
+    fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, clims=(0.0, 0.25), legend=:none)
+    if b.bore_coords != nothing
+        x = b.bore_coords[2, :]
+        y = b.bore_coords[1, :]
+        plot!(fig1, x, y, seriestype = :scatter)
+        plot!(fig2, x, y, seriestype = :scatter)
+    end
     fig = plot(fig1, fig2, layout=(1,2))
     return fig
 end

@@ -7,7 +7,7 @@
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
-    obs_noise_std::Float64 = 0.05
+    obs_noise_std::Float64 = 0.01
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
@@ -142,8 +142,13 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a, rng)
         ore_obs = s.ore_map[a[1], a[2], 1]
         obs = MEObservation(ore_obs)
 
-        r = ore_obs >= m.massive_threshold ? m.strike_reward : 0.0
-        r -= m.drill_cost
+        ore_locations = Set(findall(s.ore_map[:,:,1] .>= m.massive_threshold))
+        non_drilled = Set(POMDPs.actions(m, s))
+        valid_ore = intersect(ore_locations, non_drilled)
+        shaft_locations = Set(collect(CartesianIndices((a[1]-m.delta:a[1]+m.delta,a[2]-m.delta:a[2]+m.delta))))
+        strikes = length(intersect(valid_ore, shaft_locations))
+        # r = ore_obs >= m.massive_threshold ? m.strike_reward : 0.0
+        r = strikes*m.strike_reward - m.drill_cost
         a = reshape(Int64[a[1] a[2]], 2, 1)
         coords_p = [s.bore_coords a]
     end
@@ -167,22 +172,6 @@ function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
         y = Int64(coord[2])
         keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
         setdiff!(action_set, keepout)
-    end
-    collect(action_set)
-end
-
-function POMDPs.actions(m::MineralExplorationPOMDP, b)
-    action_set = Set(POMDPs.actions(m))
-    n_initial = length(m.initial_data)
-    if b.bore_coords != nothing
-        n_obs = size(b.bore_coords)[2] - n_initial
-        for i=1:n_obs
-            coord = b.bore_coords[:, i + n_initial]
-            x = Int64(coord[1])
-            y = Int64(coord[2])
-            keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
-            setdiff!(action_set, keepout)
-        end
     end
     collect(action_set)
 end

@@ -96,7 +96,7 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
     # Write the param file
     if silent
         stdout_orig = stdout
-        redirect_stdout()
+        (rd, wr) = redirect_stdout()
     end
     fn = write_params_to_file(p, n; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
 
@@ -111,6 +111,8 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
     ore_quals = repeat(poro_2D, outer=(1, 1, 8))
     if silent
         redirect_stdout(stdout_orig)
+        close(rd)
+        close(wr)
     end
     return ore_quals
 end

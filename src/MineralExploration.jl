@@ -2,6 +2,7 @@ module MineralExploration
 
 using POMDPs
 using POMDPModelTools
+using POMCPOW
 using ParticleFilters
 using Random
 using Plots
@@ -31,5 +32,10 @@ export
         MEBelief,
         MEBeliefUpdater
 include("beliefs.jl")
+
+export
+        NextActionSampler,
+        ExpertPolicy
+include("solver.jl")
 
 end
