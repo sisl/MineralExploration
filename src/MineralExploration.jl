@@ -14,6 +14,7 @@ using Distributions
 export
         MEState,
         MEObservation,
+        MEAction,
         RockObservations
 include("common.jl")
 

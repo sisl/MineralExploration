@@ -38,7 +38,7 @@ function ParticleFilters.predict!(pm, m::MineralExplorationPOMDP, b::WeightedPar
 end
 
 function ParticleFilters.reweight!(wm, m::MineralExplorationPOMDP, b::WeightedParticleBelief,
-                            a::Union{Symbol, CartesianIndex}, pm, y::MEObservation, rng::AbstractRNG=Random.GLOBAL_RNG)
+                            a::MEAction, pm, y::MEObservation, rng::AbstractRNG=Random.GLOBAL_RNG)
     b0 = Float64[w for w in b.weights]
     po_s = Float64[]
     for s in pm
@@ -68,29 +68,29 @@ function ParticleFilters.update(pf::BasicParticleFilter, b::WeightedParticleBeli
 end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
-                            a::Union{Symbol, CartesianIndex}, o::MEObservation)
-    if a == :stop
+                            a::MEAction, o::MEObservation)
+    if a.type != :drill
         bp_coords = b.bore_coords
         bp_stopped = true
     else
         if b.bore_coords == nothing
-            bp_coords = reshape([a[1], a[2]], 2, 1)
+            bp_coords = reshape([a.coords[1], a.coords[2]], 2, 1)
         else
-            bp_coords = hcat(b.bore_coords, [a[1], a[2]])
+            bp_coords = hcat(b.bore_coords, [a.coords[1], a.coords[2]])
         end
-        bp_stopped = b.stopped
+        bp_stopped = o.stopped
     end
     bp_particles = ParticleFilters.update(up.pf, b.particles, a, o)
     return MEBelief(bp_coords, bp_stopped, bp_particles)
 end
 
 function obs_weight(m::MineralExplorationPOMDP, s::MEState,
-                    a::Union{Symbol, CartesianIndex}, sp::MEState, o::MEObservation)
+                    a::MEAction, sp::MEState, o::MEObservation)
     w = 0.0
-    if a == :stop
+    if a.type != :drill
         w = o.ore_quality == nothing ? 1.0 : 0.0
     else
-        ore = s.ore_map[a]
+        ore = s.ore_map[:,:,1][a.coords]
         dist = Normal(ore, m.obs_noise_std)
         w = pdf(dist, o.ore_quality)
     end
@@ -98,49 +98,89 @@ function obs_weight(m::MineralExplorationPOMDP, s::MEState,
 end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)
-    rand(rng, b.particles)
+    s0 = rand(rng, b.particles)
+    return MEState(s0.ore_map, s0.bore_coords, b.stopped, false)
 end
 
 Base.rand(b::MEBelief) = rand(Random.GLOBAL_RNG, b)
 
 function summarize(b::MEBelief)
-    μ = b.particles.particles[1].ore_map.*0.0
+    (x, y, z) = size(b.particles.particles[1].ore_map)
+    μ = zeros(Float64, x, y, z)
     for (i, p) in enumerate(b.particles.particles)
         w = b.particles.weights[i]
-        μ .+= p.ore_map .* w
+        ore_map = convert(Array{Float64, 3}, p.ore_map)
+        μ .+= ore_map .* w
     end
-    σ² = b.particles.particles[1].ore_map.*0.0
+    σ² = zeros(Float64, x, y, z)
     for (i, p) in enumerate(b.particles.particles)
         w = b.particles.weights[i]
-        σ² += w*(p.ore_map - μ).^2
+        ore_map = convert(Array{Float64, 3}, p.ore_map)
+        σ² .+= w*(ore_map - μ).^2
     end
     return (μ, σ²)
 end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
-    action_set = Set(POMDPs.actions(m))
-    n_initial = length(m.initial_data)
-    if b.bore_coords != nothing
-        n_obs = size(b.bore_coords)[2] - n_initial
-        for i=1:n_obs
-            coord = b.bore_coords[:, i + n_initial]
-            x = Int64(coord[1])
-            y = Int64(coord[2])
-            keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
-            setdiff!(action_set, keepout)
+    if b.stopped
+        return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
+    else
+        action_set = Set(POMDPs.actions(m))
+        n_initial = length(m.initial_data)
+        if b.bore_coords != nothing
+            n_obs = size(b.bore_coords)[2] - n_initial
+            for i=1:n_obs
+                coord = b.bore_coords[:, i + n_initial]
+                x = Int64(coord[1])
+                y = Int64(coord[2])
+                keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
+                keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
+                setdiff!(action_set, keepout_acts)
+            end
         end
+        delete!(action_set, MEAction(type=:mine))
+        delete!(action_set, MEAction(type=:abandon))
+        return collect(action_set)
     end
-    collect(action_set)
+    return MEAction[]
 end
 
-function Plots.plot(b::MEBelief, t=nothing) # TODO add well plots
+function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
+    o = b.sr_belief.o
+    s = rand(b.sr_belief.dist)[1]
+    # println(s)
+    # STOP
+    if o.stopped
+        return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
+    else
+        action_set = Set(POMDPs.actions(m))
+        n_initial = length(m.initial_data)
+        if s.bore_coords != nothing
+            n_obs = size(s.bore_coords)[2] - n_initial
+            for i=1:n_obs
+                coord = s.bore_coords[:, i + n_initial]
+                x = Int64(coord[1])
+                y = Int64(coord[2])
+                keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
+                keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
+                setdiff!(action_set, keepout_acts)
+            end
+        end
+        delete!(action_set, MEAction(type=:mine))
+        delete!(action_set, MEAction(type=:abandon))
+        return collect(action_set)
+    end
+    return MEAction[]
+end
+
+function Plots.plot(b::MEBelief, t=nothing)
     mean, var = summarize(b)
     if t == nothing
         mean_title = "Belief Mean"
         std_title = "Belief StdDev"
     else
-        mean_title = "Belief Mean t = $t"
-        std_title = "Belief StdDev t = $t"
+        mean_title = "Belief Mean t=$t"
+        std_title = "Belief StdDev t=$t"
     end
     fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
     fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, clims=(0.0, 0.25), legend=:none)

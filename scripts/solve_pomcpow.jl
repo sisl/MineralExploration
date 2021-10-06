@@ -20,7 +20,7 @@ initialize_data!(m, N_INITIAL)
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 1000)
+up = MEBeliefUpdater(m, 100)
 b0 = POMDPs.initialize_belief(up, ds0)
 
 next_action = NextActionSampler()
@@ -29,22 +29,24 @@ solver = POMCPOWSolver(tree_queries=1000,
                        check_repeat_obs=false,
                        check_repeat_act=true,
                        next_action=next_action,
+                       k_observation=2,
+                       alpha_observation=0.1,
                        estimate_value=0.0)
 planner = POMDPs.solve(solver, m)
 
 # @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
 # @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
-a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
-inbrowser(D3Tree(info[:tree], init_expand=1), "firefox")
+# a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
+# inbrowser(D3Tree(info[:tree], init_expand=1), "firefox")
 
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
-savefig(fig, "./data/example/ore_vals.png")
+# savefig(fig, "./data/example/ore_vals.png")
 display(fig)
 
 s_massive = s0.ore_map[:,:,1] .>= 0.7
 
 fig = heatmap(s_massive, title="Massive Ore Deposits", fill=true, clims=(0.0, 1.0))
-savefig(fig, "./data/example/massive.png")
+# savefig(fig, "./data/example/massive.png")
 display(fig)
 
 fig = plot(b0)
@@ -53,16 +55,20 @@ display(fig)
 b_new = nothing
 discounted_return = 0.0
 println("Entering Simulation...")
-for (s, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "s,a,r,bp,t", max_steps=50)
+for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_steps=50)
     global discounted_return
     global b_new
     b_new = bp
+    @show t
     @show a
     @show r
-    @show t
+    @show sp.stopped
+    @show bp.stopped
+
+
     fig = plot(bp, t)
     str = "./data/example/belief_$t.png"
-    savefig(fig, str)
+    # savefig(fig, str)
     display(fig)
     discounted_return += POMDPs.discount(m)^(t - 1)*r
 end

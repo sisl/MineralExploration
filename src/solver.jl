@@ -3,12 +3,13 @@
 end
 
 function POMCPOW.next_action(o::NextActionSampler, pomdp, b, h)
-    tried_idxs = h.tree.tried[h.node]
-    if length(tried_idxs) <= 0
-        return :stop
-    else
+    # tried_idxs = h.tree.tried[h.node]
+    # action_set = POMDPs.actions(pomdp, b)
+    # if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0
+    #     return MEAction(type=:stop)
+    # else
         POMCPOW.next_action(o.rand_act, pomdp, b, h)
-    end
+    # end
 end
 
 struct ExpertPolicy <: Policy
@@ -16,18 +17,36 @@ struct ExpertPolicy <: Policy
 end
 
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
-    actions = POMDPs.actions(p.m, b)
-    mean, var = summarize(b)
-    mean = mean[:, : , 1]
-    max_val = -Inf
-    max_act = nothing
-    for action in actions
-        if action != :stop
-            act_val = mean[action]
-            max_act = act_val > max_val ? action : max_act
-            max_val = act_val > max_val ? act_val : max_val
+    if b.stopped
+        volumes = Float64[]
+        weights = b.particles.weights
+        for s in b.particles.particles
+            v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
+            push!(volumes, v)
         end
+        mean_volume = sum(weights.*volumes)
+        volume_var = sum(weights.*(volumes .- mean_volume).^2)
+        volume_std = sqrt(volume_var)
+        lcb = mean_volume - volume_std
+        if lcb >= p.m.extraction_cost
+            return MEAction(type=:mine)
+        else
+            return MEAction(type=:abandon)
+        end
+    else
+        actions = POMDPs.actions(p.m, b)
+        mean, var = summarize(b)
+        mean = mean[:, : , 1]
+        max_val = -Inf
+        max_act = nothing
+        for action in actions
+            if action.type == :drill
+                act_val = mean[action.coords]
+                max_act = act_val > max_val ? action : max_act
+                max_val = act_val > max_val ? act_val : max_val
+            end
+        end
+        max_act = max_val > p.m.massive_threshold ? max_act : MEAction(type=:stop)
+        return max_act
     end
-    max_act = max_val > p.m.massive_threshold ? max_act : :stop
-    return max_act
 end

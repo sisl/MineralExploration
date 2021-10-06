@@ -1,5 +1,5 @@
 
-@with_kw struct MineralExplorationPOMDP <: POMDP{MEState, Union{CartesianIndex, Symbol}, MEObservation}
+@with_kw struct MineralExplorationPOMDP <: POMDP{MEState, MEAction, MEObservation}
     reservoir_dims::Tuple{Float64, Float64, Float64} = (2000.0, 2000.0, 30.0) #  lat x lon x thick in meters
     grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
@@ -10,6 +10,8 @@
     obs_noise_std::Float64 = 0.01
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
+    extraction_cost::Float64 = 10.0
+    extraction_lcb::Float64 = 0.9
     variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     nugget::Tuple = (1, 0)
     gp_weight::Float64 = 0.35
@@ -78,8 +80,7 @@ function initialize_data!(p::MineralExplorationPOMDP, coords::Array)
 end
 
 POMDPs.discount(::MineralExplorationPOMDP) = 0.99
-POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = size(s.bore_coords)[2] >= m.max_bores ||
-                                                                s.stopped
+POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.decided
 
 struct MEInitStateDist
     gp_distribution::GSLIBDistribution
@@ -126,63 +127,96 @@ function Base.rand(d::MEInitStateDist)
     ore_map = lode_map + gp_ore_map
     clamp!(ore_map, 0.0, 1.0)
     MEState(ore_map,
-            d.gp_distribution.data.coordinates, false)
+            d.gp_distribution.data.coordinates, false, false)
 end
 
 Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
 
-function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a, rng)
+function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
+    r = m.strike_reward*sum(s.ore_map[:,:,1] .>= m.massive_threshold)
+    r -= m.extraction_cost
+    return r
+end
+
+function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Random.AbstractRNG)
     stopped = s.stopped
-    if a == :stop
-        obs = MEObservation(nothing)
+    decided = s.decided
+    a_type = a.type
+    if a_type == :stop && !stopped && !decided
+        obs = MEObservation(nothing, true, false)
         r = 0.0
         coords_p = s.bore_coords
-        stopped = true
-    else
-        ore_obs = s.ore_map[a[1], a[2], 1]
-        obs = MEObservation(ore_obs)
-
-        ore_locations = Set(findall(s.ore_map[:,:,1] .>= m.massive_threshold))
-        non_drilled = Set(POMDPs.actions(m, s))
-        valid_ore = intersect(ore_locations, non_drilled)
-        shaft_locations = Set(collect(CartesianIndices((a[1]-m.delta:a[1]+m.delta,a[2]-m.delta:a[2]+m.delta))))
-        strikes = length(intersect(valid_ore, shaft_locations))
-        # r = ore_obs >= m.massive_threshold ? m.strike_reward : 0.0
-        r = strikes*m.strike_reward - m.drill_cost
-        a = reshape(Int64[a[1] a[2]], 2, 1)
+        stopped_p = true
+        decided_p = false
+    elseif a_type == :abandon && stopped && !decided
+        obs = MEObservation(nothing, true, true)
+        r = 0.0
+        coords_p = s.bore_coords
+        stopped_p = true
+        decided_p = true
+    elseif a_type == :mine && stopped && !decided
+        obs = MEObservation(nothing, true, true)
+        r = extraction_reward(m, s)
+        coords_p = s.bore_coords
+        stopped_p = true
+        decided_p = true
+    elseif a_type ==:drill && !stopped && !decided
+        ore_obs = s.ore_map[a.coords[1], a.coords[2], 1]
+        a = reshape(Int64[a.coords[1] a.coords[2]], 2, 1)
+        r = -m.drill_cost
         coords_p = [s.bore_coords a]
+        n_bores = size(coords_p)[2]
+        stopped_p = n_bores >= m.max_bores
+        decided_p = false
+        obs = MEObservation(ore_obs, stopped_p, false)
+    else
+        error("Invalid Action! Action: $a, Stopped: $stopped, Decided: $decided")
     end
-    sp = MEState(s.ore_map, coords_p, stopped)
+    sp = MEState(s.ore_map, coords_p, stopped_p, decided_p)
     return (sp=sp, o=obs, r=r)
 end
+
 
 function POMDPs.actions(m::MineralExplorationPOMDP)
     idxs = CartesianIndices(m.grid_dim[1:2])
     bore_actions = reshape(collect(idxs), prod(m.grid_dim[1:2]))
-    actions = Union{CartesianIndex{2}, Symbol}[:stop]
-    append!(actions, bore_actions)
+    actions = MEAction[MEAction(type=:stop), MEAction(type=:mine),
+                        MEAction(type=:abandon)]
+    for coord in bore_actions
+        push!(actions, MEAction(coords=coord))
+    end
     return actions
 end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
-    action_set = Set(POMDPs.actions(m))
-    for i=1:size(s.bore_coords)[2]
-        coord = s.bore_coords[:, i]
-        x = Int64(coord[1])
-        y = Int64(coord[2])
-        keepout = Set(collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta))))
-        setdiff!(action_set, keepout)
+    if s.decided
+        return MEAction[]
+    elseif s.stopped
+        return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
+    else
+        action_set = Set(POMDPs.actions(m))
+        for i=1:size(s.bore_coords)[2]
+            coord = s.bore_coords[:, i]
+            x = Int64(coord[1])
+            y = Int64(coord[2])
+            keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
+            keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
+            setdiff!(action_set, keepout_acts)
+        end
+        delete!(action_set, MEAction(type=:mine))
+        delete!(action_set, MEAction(type=:abandon))
+        return collect(action_set)
     end
-    collect(action_set)
+    return MEAction[]
 end
 
 function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
-                    a::Union{Symbol, CartesianIndex}, sp::MEState, o::MEObservation)
+                    a::MEAction, sp::MEState, o::MEObservation)
     w = 0.0
-    if a == :stop
+    if a.type != :drill
         w = o.ore_quality == nothing ? 1.0 : 0.0
     else
-        ore = s.ore_map[a]
+        ore = s.ore_map[:,:,1][a.coords]
         dist = Normal(ore, m.obs_noise_std)
         w = pdf(dist, o.ore_quality)
     end
