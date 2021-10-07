@@ -4,6 +4,7 @@ using POMDPs
 using POMDPModelTools
 using POMCPOW
 using ParticleFilters
+using BeliefUpdaters
 using Random
 using Plots
 using CSV

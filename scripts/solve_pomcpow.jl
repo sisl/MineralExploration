@@ -26,18 +26,23 @@ b0 = POMDPs.initialize_belief(up, ds0)
 next_action = NextActionSampler()
 
 solver = POMCPOWSolver(tree_queries=1000,
-                       check_repeat_obs=false,
+                       check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
+                       k_action=5,
+                       alpha_action=0.25,
                        k_observation=2,
-                       alpha_observation=0.1,
-                       estimate_value=0.0)
+                       alpha_observation=0.25,
+                       criterion=POMCPOW.MaxUCB(100.0),
+                       # estimate_value=POMCPOW.RolloutEstimator(ExpertPolicy(m))
+                       estimate_value=POMCPOW.RolloutEstimator(MineralExploration.RandomSolver())
+                       )
 planner = POMDPs.solve(solver, m)
 
 # @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
 # @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
-# a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
-# inbrowser(D3Tree(info[:tree], init_expand=1), "firefox")
+a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
+inbrowser(D3Tree(info[:tree], init_expand=1), "firefox")
 
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
 # savefig(fig, "./data/example/ore_vals.png")

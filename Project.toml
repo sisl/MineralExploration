@@ -4,6 +4,7 @@ authors = ["jmern3250 <jmern91@stanford.edu>"]
 version = "0.1.0"
 
 [deps]
+BeliefUpdaters = "8bb6e9a1-7d73-552c-a44a-e5dc5634aac4"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 POMCPOW = "4c53ee00-974c-466f-8fa5-8dd73959bbab"
