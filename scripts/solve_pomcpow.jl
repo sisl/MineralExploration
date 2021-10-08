@@ -20,12 +20,12 @@ initialize_data!(m, N_INITIAL)
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 100)
+up = MEBeliefUpdater(m, 1000)
 b0 = POMDPs.initialize_belief(up, ds0)
 
 next_action = NextActionSampler()
 
-solver = POMCPOWSolver(tree_queries=1000,
+solver = POMCPOWSolver(tree_queries=10000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
