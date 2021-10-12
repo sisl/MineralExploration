@@ -1,15 +1,16 @@
-struct NextActionSampler
-    rand_act::POMCPOW.RandomActionGenerator
-    b0::MEBelief
-    up::MEBeliefUpdater
-    function NextActionSampler(b0::MEBelief, up::MEBeliefUpdater)
-        rand_act = POMCPOW.RandomActionGenerator(Random.GLOBAL_RNG)
-        new(rand_act, b0, up)
-    end
+@with_kw struct NextActionSampler
+    ucb::Float64 = 1.0
+    # rand_act::POMCPOW.RandomActionGenerator
+    # b0::MEBelief
+    # up::MEBeliefUpdater
+    # function NextActionSampler(b0::MEBelief, up::MEBeliefUpdater)
+    #     rand_act = POMCPOW.RandomActionGenerator(Random.GLOBAL_RNG)
+    #     new(rand_act, b0, up)
+    # end
 end
 
-function sample_ucb_drill(mean, var)
-    scores = mean[:,:,1] + sqrt.(var[:,:,1])
+function sample_ucb_drill(mean, var, ucb)
+    scores = mean[:,:,1] + ucb.*sqrt.(var[:,:,1])
     weights = Float64[]
     idxs = CartesianIndex{2}[]
     m, n, _ = size(mean)
@@ -39,7 +40,7 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
             return MEAction(type=:stop)
         else
             mean, var = summarize(b)
-            return sample_ucb_drill(mean, var)
+            return sample_ucb_drill(mean, var, o.ucb)
         end
     end
 end
@@ -60,25 +61,46 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
         if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0
             return MEAction(type=:stop)
         else
-            bp = obj.b0
-            s = rand(b.sr_belief.dist)[1]
-            n = size(s.bore_coords)[2]
-            for i = 1:n
-                bore = s.bore_coords[:, i]
-                coords = CartesianIndex(bore[1], bore[2])
-                a = MEAction(coords=coords)
-                o = MEObservation(s.ore_map[bore[1], bore[2], 1], false, false)
-                bp = POMDPs.update(obj.up, bp, a, o)
+            ore_maps = Array{Float64, 3}[]
+            weights = Float64[]
+            for (idx, item) in enumerate(b.sr_belief.dist.items)
+                weight = b.sr_belief.dist.cdf[idx]
+                state = item[1]
+                push!(ore_maps, state.ore_map)
+                push!(weights, weight)
             end
-            mean, var = summarize(bp)
-            return sample_ucb_drill(mean, var)
+            weights ./= sum(weights)
+            mean = sum(weights.*ore_maps)
+            var = sum([weights[i]*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])
+            return sample_ucb_drill(mean, var, obj.ucb)
         end
     end
 end
 
 struct ExpertPolicy <: Policy
     m::MineralExplorationPOMDP
-    # b0::MEBelief
+end
+
+POMCPOW.updater(p::ExpertPolicy) = MEBeliefUpdater(p.m, 0)
+
+function POMCPOW.BasicPOMCP.extract_belief(p::MEBeliefUpdater, node::POMCPOW.BeliefNode)
+    srb = node.tree.sr_beliefs[node.node]
+    cv = srb.dist
+    particles = MEState[]
+    weights = Float64[]
+    coords = nothing
+    stopped = false
+    for (idx, item) in enumerate(cv.items)
+        weight = cv.cdf[idx]
+        state = item[1]
+        coords = state.bore_coords
+        stopped = state.stopped
+        push!(particles, state)
+        push!(weights, weight)
+    end
+    weights ./= sum(weights)
+    particle_set = WeightedParticleBelief(particles, weights)
+    return MEBelief(coords, stopped, particle_set)
 end
 
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
@@ -154,6 +176,7 @@ end
 mutable struct RandomSolver <: Solver
     rng::AbstractRNG
 end
+
 RandomSolver(;rng=Random.GLOBAL_RNG) = RandomSolver(rng)
 POMDPs.solve(solver::RandomSolver, problem::Union{POMDP,MDP}) = POMCPOW.RandomPolicy(solver.rng, problem, BeliefUpdaters.PreviousObservationUpdater())
 
