@@ -14,36 +14,44 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
 up = MEBeliefUpdater(m, 1000)
-b0 = POMDPs.initialize_belief(up, ds0)
+println("Initializing belief...")
+# b0 = POMDPs.initialize_belief(up, ds0)
+println("Belief Initialized!")
+next_action = NextActionSampler(b0, up)
 
-next_action = NextActionSampler()
-
-solver = POMCPOWSolver(tree_queries=10000,
+solver = POMCPOWSolver(tree_queries=1000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
-                       k_action=5,
+                       k_action=3,
                        alpha_action=0.25,
                        k_observation=2,
                        alpha_observation=0.25,
-                       criterion=POMCPOW.MaxUCB(100.0),
+                       criterion=POMCPOW.MaxUCB(10.0),
                        # estimate_value=POMCPOW.RolloutEstimator(ExpertPolicy(m))
-                       estimate_value=POMCPOW.RolloutEstimator(MineralExploration.RandomSolver())
+                       # estimate_value=POMCPOW.RolloutEstimator(MineralExploration.RandomSolver())
+                       estimate_value=0.0
                        )
 planner = POMDPs.solve(solver, m)
 
 # @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
 # @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
+# volumes = [sum(b.ore_map[:,:,1] .>= m.massive_threshold) for b in b0.particles.particles]
+# mean(volumes)
+# MineralExploration.std(volumes)
+println("Building test tree...")
 a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
-inbrowser(D3Tree(info[:tree], init_expand=1), "firefox")
+tree = info[:tree]
+inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
+println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
 # savefig(fig, "./data/example/ore_vals.png")
 display(fig)

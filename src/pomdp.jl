@@ -10,7 +10,7 @@
     obs_noise_std::Float64 = 0.01
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 10.0
+    extraction_cost::Float64 = 150.0
     extraction_lcb::Float64 = 0.9
     variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     nugget::Tuple = (1, 0)
