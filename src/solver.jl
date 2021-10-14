@@ -9,17 +9,7 @@
     # end
 end
 
-function belief_scores(m, v)
-    norm_mean = m[:,:,1]./(maximum(m[:,:,1]) - minimum(m[:,:,1]))
-    norm_mean .-= minimum(norm_mean)
-    norm_std = sqrt.(v[:,:,1])./(maximum(v[:,:,1]) - minimum(v[:,:,1]))
-    norm_std .-= minimum(norm_std)
-    scores = norm_mean.*norm_std
-    scores ./= sum(scores)
-    return scores
-end
-
-function sample_ucb_drill(mean, var, ucb)
+function sample_ucb_drill(mean, var)
     scores = belief_scores(mean, var)
     weights = Float64[]
     idxs = CartesianIndex{2}[]
@@ -28,11 +18,22 @@ function sample_ucb_drill(mean, var, ucb)
         for j = 1:n
             idx = CartesianIndex(i, j)
             push!(idxs, idx)
-            push!(weights, scores[idx])
+            push!(weights, scores[i, j])
         end
     end
     coords = sample(idxs, StatsBase.Weights(weights))
     return MEAction(coords=coords)
+end
+
+function belief_scores(m, v)
+    norm_mean = m[:,:,1]./(maximum(m[:,:,1]) - minimum(m[:,:,1]))
+    norm_mean .-= minimum(norm_mean)
+    s = v[:,:,1]
+    norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
+    norm_std .-= minimum(norm_std)
+    scores = norm_mean .* norm_std
+    scores ./= sum(scores)
+    return scores
 end
 
 function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMDP,
@@ -50,7 +51,7 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
             return MEAction(type=:stop)
         else
             mean, var = summarize(b)
-            return sample_ucb_drill(mean, var, o.ucb)
+            return sample_ucb_drill(mean, var)
         end
     end
 end
@@ -82,7 +83,7 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
             weights ./= sum(weights)
             mean = sum(weights.*ore_maps)
             var = sum([weights[i]*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])
-            return sample_ucb_drill(mean, var, obj.ucb)
+            return sample_ucb_drill(mean, var)
         end
     end
 end

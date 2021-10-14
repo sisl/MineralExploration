@@ -4,14 +4,21 @@ N_PROCS = 4
 println("Building $N_PROCS Workers...")
 addprocs(N_PROCS)
 
+using MineralExploration
+
+using POMDPs
+using POMDPSimulators
+using POMCPOW
+using ParticleFilters
+using Statistics
+using JLD
+
 @everywhere using MineralExploration
 
 @everywhere using POMDPs
 @everywhere using POMDPSimulators
 @everywhere using POMCPOW
 @everywhere using ParticleFilters
-using Statistics
-using JLD
 
 N_SIM = 64
 N_INITIAL = 0
@@ -52,9 +59,9 @@ for i = 1:N_SIM
 end
 
 println("Starting Simulations...")
-data = POMDPSimulators.run_parallel(queue, show_progress=false)
+data = POMDPSimulators.run_parallel(queue, show_progress=true)
 println("Simulations Complete!")
-JLD.save("./data/POMCPOW_test_2.jld", "results", data)
+JLD.save("./data/POMCPOW_test_3.jld", "results", data)
 
 profitable_idxs = data.massive_ore .> m.extraction_cost
 loss_idxs = data.massive_ore .<= m.extraction_cost
