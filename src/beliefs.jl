@@ -205,7 +205,7 @@ function Plots.plot(b::MEBelief, t=nothing)
         std_title = "Belief StdDev t=$t"
     end
     fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
-    fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, clims=(0.0, 0.25), legend=:none)
+    fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2))
     if b.bore_coords != nothing
         x = b.bore_coords[2, :]
         y = b.bore_coords[1, :]

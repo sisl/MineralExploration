@@ -1,17 +1,19 @@
+using Distributed
 
-using MineralExploration
+N_PROCS = 4
+println("Building $N_PROCS Workers...")
+addprocs(N_PROCS)
 
-using POMDPs
-using POMDPSimulators
-using POMCPOW
-using Plots
-using ParticleFilters
+@everywhere using MineralExploration
+
+@everywhere using POMDPs
+@everywhere using POMDPSimulators
+@everywhere using POMCPOW
+@everywhere using ParticleFilters
 using Statistics
+using JLD
 
-using MineralExploration
-
-N_SIM = 4
-N_PROCS = 2
+N_SIM = 64
 N_INITIAL = 0
 MAX_BORES = 10
 
@@ -20,14 +22,14 @@ initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 
-up = MEBeliefUpdater(m, 100)
+up = MEBeliefUpdater(m, 1000)
 println("Initializing Belief...")
-# b0 = POMDPs.initialize_belief(up, ds0)
+b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 next_action = NextActionSampler()
 
-solver = POMCPOWSolver(tree_queries=100,
+solver = POMCPOWSolver(tree_queries=10000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
@@ -44,12 +46,29 @@ println("Building Simulation Queue...")
 queue = POMDPSimulators.Sim[]
 for i = 1:N_SIM
     s0 = rand(ds0)
-    s_massive = s0.ore_map[:,:,1] .>= 0.7
+    s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
     r_massive = sum(s_massive)
     push!(queue, POMDPSimulators.Sim(m, planner, up, b0, s0, metadata=Dict(:massive_ore=>r_massive)))
 end
-println("Building Workers $N_PROCS...")
-POMDPSimulators.addprocs(N_PROCS)
+
 println("Starting Simulations...")
 data = POMDPSimulators.run_parallel(queue, show_progress=false)
 println("Simulations Complete!")
+JLD.save("./data/POMCPOW_test_2.jld", "results", data)
+
+profitable_idxs = data.massive_ore .> m.extraction_cost
+loss_idxs = data.massive_ore .<= m.extraction_cost
+n_profitable = sum(profitable_idxs)
+n_correct_profit = sum(data.reward[profitable_idxs] .>= 0.0)
+p_correct_profit = n_correct_profit/n_profitable
+
+n_loss = sum(loss_idxs)
+n_correct_loss = sum(data.reward[loss_idxs] .>= -100.0)
+p_correct_loss = n_correct_loss/n_loss
+
+available_profit = sum(data.massive_ore[profitable_idxs] .- m.extraction_cost)
+total_profit = sum(data.reward[profitable_idxs])
+
+println("Profitable: $n_profitable, Drilled: $n_correct_profit, Accuracy: $p_correct_profit")
+println("Loss: $n_loss, Abandoned: $n_correct_loss, Accuracy: $p_correct_loss")
+println("Available Profit: $available_profit, Total Profit: $total_profit")

@@ -9,8 +9,18 @@
     # end
 end
 
+function belief_scores(m, v)
+    norm_mean = m[:,:,1]./(maximum(m[:,:,1]) - minimum(m[:,:,1]))
+    norm_mean .-= minimum(norm_mean)
+    norm_std = sqrt.(v[:,:,1])./(maximum(v[:,:,1]) - minimum(v[:,:,1]))
+    norm_std .-= minimum(norm_std)
+    scores = norm_mean.*norm_std
+    scores ./= sum(scores)
+    return scores
+end
+
 function sample_ucb_drill(mean, var, ucb)
-    scores = mean[:,:,1] + ucb.*sqrt.(var[:,:,1])
+    scores = belief_scores(mean, var)
     weights = Float64[]
     idxs = CartesianIndex{2}[]
     m, n, _ = size(mean)
