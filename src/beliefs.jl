@@ -2,24 +2,23 @@
 struct MEBelief
     bore_coords::Union{Nothing, Matrix{Int64}}
     stopped::Bool
-    particles::WeightedParticleBelief
+    weights::Vector{Float64}
+    particles::Vector{MEState}
+    acts::Vector{MEAction}
+    obs::Vector{MEObservation}
 end
-
-struct NullResampler end
 
 struct MEBeliefUpdater <: POMDPs.Updater
     m::MineralExplorationPOMDP
     n::Int64
-    pf::BasicParticleFilter
-    function MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int, rng::AbstractRNG=Random.GLOBAL_RNG)
-        pf = BasicParticleFilter(m, NullResampler(), n, rng)
-        new(m, n, pf)
-    end
+    rng::AbstractRNG
 end
 
+MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int,
+    rng::AbstractRNG=Random.GLOBAL_RNG) = MEBeliefUpdater(m, n, rng)
+
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
-    S = POMDPs.statetype(up.m)
-    particles = S[]
+    particles = MEState[]
     weights = Float64[]
     w0 = 1.0/up.n
     for i = 1:up.n
@@ -27,18 +26,43 @@ function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
         push!(particles, s)
         push!(weights, w0)
     end
-    particle_set = WeightedParticleBelief(particles, weights)
-    return MEBelief(nothing, false, particle_set)
+    acts = MEAction[]
+    obs = MEObservation[]
+    return MEBelief(nothing, false, weights, particles, acts, obs)
 end
 
-function ParticleFilters.predict!(pm, m::MineralExplorationPOMDP, b::WeightedParticleBelief, ::Any, ::AbstractRNG)
-    for p in b.particles
-        push!(pm, p)
+# function ParticleFilters.reweight!(wm, m::MineralExplorationPOMDP, b::WeightedParticleBelief,
+#                             a::MEAction, pm, y::MEObservation, rng::AbstractRNG=Random.GLOBAL_RNG)
+#     b0 = Float64[w for w in b.weights]
+#     po_s = Float64[]
+#     for s in pm
+#         push!(po_s, obs_weight(m, s, a, s, y))
+#     end
+#     bp = b0.*po_s
+#     bp ./= sum(bp)
+#     for w in bp
+#         push!(wm, w)
+#     end
+# end
+
+function obs_weight(m::MineralExplorationPOMDP, s::MEState,
+                    a::MEAction, sp::MEState, o::MEObservation)
+    w = 0.0
+    if a.type != :drill
+        w = o.ore_quality == nothing ? 1.0 : 0.0
+    else
+        mainbody_cov = [s.var 0.0; 0.0 s.var]
+        mainbody_dist = mvnorm(m.mainbody_loc, mainbody_cov)
+        o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])])
+        o_gp = o.ore_quality - o_mainbody
+        # mu, sigma = kriging TODO add GSLIB kriging here
+        point_dist = Normal(mu, sigma)
+        w = pdf(point_dist, o_gp)
     end
+    return w
 end
 
-function ParticleFilters.reweight!(wm, m::MineralExplorationPOMDP, b::WeightedParticleBelief,
-                            a::MEAction, pm, y::MEObservation, rng::AbstractRNG=Random.GLOBAL_RNG)
+function reweight(particles::Vector{MEState}, weights::Vector{Float64}, a::MEAction, o::MEObservation)
     b0 = Float64[w for w in b.weights]
     po_s = Float64[]
     for s in pm
@@ -46,26 +70,30 @@ function ParticleFilters.reweight!(wm, m::MineralExplorationPOMDP, b::WeightedPa
     end
     bp = b0.*po_s
     bp ./= sum(bp)
-    for w in bp
-        push!(wm, w)
-    end
-end
-
-function ParticleFilters.resample(::NullResampler, bp::WeightedParticleBelief, ::AbstractRNG)
-    return WeightedParticleBelief(bp.particles, bp.weights)
-end
-
-function ParticleFilters.update(pf::BasicParticleFilter, b::WeightedParticleBelief,
-                                a::Any, o::Any)
-    S = typeof(b.particles[1])
-    pm = S[]
-    wm = Float64[]
-    ParticleFilters.predict!(pm, pf.predict_model, b, a, pf.rng)
-    ParticleFilters.reweight!(wm, pf.reweight_model, b, a, pm, o, pf.rng)
-    bp = WeightedParticleBelief(pm, wm)
-    bp = ParticleFilters.resample(pf.resampler, bp, pf.rng)
     return bp
 end
+
+function resample(b::MEBelief, wp::Vector{Float64})
+    # TODO HERE 
+end
+
+function update_particles(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
+    wp = reweight(b.particles, b.weights, a, o)
+    pp = resample(b, wp)
+
+end
+# function ParticleFilters.update(pf::BasicParticleFilter, b::WeightedParticleBelief,
+#                                 a::Any, o::Any)
+#
+#     # S = typeof(b.particles[1])
+#     # pm = S[]
+#     # wm = Float64[]
+#     # ParticleFilters.predict!(pm, pf.predict_model, b, a, pf.rng)
+#     # ParticleFilters.reweight!(wm, pf.reweight_model, b, a, pm, o, pf.rng)
+#     # bp = WeightedParticleBelief(pm, wm)
+#     # bp = ParticleFilters.resample(pf.resampler, bp, pf.rng)
+#     # return bp
+# end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::MEAction, o::MEObservation)
@@ -80,21 +108,18 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
         end
         bp_stopped = o.stopped
     end
-    bp_particles = ParticleFilters.update(up.pf, b.particles, a, o)
-    return MEBelief(bp_coords, bp_stopped, bp_particles)
-end
-
-function obs_weight(m::MineralExplorationPOMDP, s::MEState,
-                    a::MEAction, sp::MEState, o::MEObservation)
-    w = 0.0
-    if a.type != :drill
-        w = o.ore_quality == nothing ? 1.0 : 0.0
-    else
-        ore = s.ore_map[:,:,1][a.coords]
-        dist = Normal(ore, m.obs_noise_std)
-        w = pdf(dist, o.ore_quality)
+    bp_particles = update_particles(up, b, a, o)
+    bp_acts = MEActs[]
+    bp_obs = MEObservation[]
+    for act in b.acts
+        push!(bp_acts, act)
     end
-    return w
+    push!(bp_acts, a)
+    for obs in b.obs
+        push!(bp_obs, obs)
+    end
+    push!(bp_obs, o)
+    return MEBelief(bp_coords, bp_stopped, bp_weights, bp_particles, bp_acts, bp_obs)
 end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)

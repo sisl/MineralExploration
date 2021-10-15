@@ -7,7 +7,6 @@
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
-    obs_noise_std::Float64 = 0.01
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 150.0
@@ -126,7 +125,7 @@ function Base.rand(d::MEInitStateDist)
 
     ore_map = lode_map + gp_ore_map
     clamp!(ore_map, 0.0, 1.0)
-    MEState(ore_map,
+    MEState(ore_map, mainbody_var,
             d.gp_distribution.data.coordinates, false, false)
 end
 
@@ -172,7 +171,7 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
     else
         error("Invalid Action! Action: $a, Stopped: $stopped, Decided: $decided")
     end
-    sp = MEState(s.ore_map, coords_p, stopped_p, decided_p)
+    sp = MEState(s.ore_map, s.var, coords_p, stopped_p, decided_p)
     return (sp=sp, o=obs, r=r)
 end
 
