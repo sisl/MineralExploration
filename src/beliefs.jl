@@ -73,13 +73,27 @@ function reweight(particles::Vector{MEState}, weights::Vector{Float64}, a::MEAct
     return bp
 end
 
-function resample(b::MEBelief, wp::Vector{Float64})
-    # TODO HERE 
+function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64})
+    sampled_states = sample(up.rng, b.particles, StatsBase.Weights(wp), up.n, replace=true)
+    mainbody_vars = [s.var for s in sampled_states]
+    mainbody_maps = Matrix{Float64}[]
+    for mainbody_var in mainbody_vars
+        mainbody_map = zeros(Float64, up.m.reservoir_dims[1], up.m.reservoir_dims[2])
+        cov = [mainbody_var 0.0; 0.0 mainbody_var]
+        mvnorm = MvNormal(d.mainbody_loc, cov)
+        for i = 1:x_dim
+            for j = 1:y_dim
+                mainbody_map[i, j] = pdf(mvnorm, [float(i), float(j)])
+            end
+        end
+        push!(mainbody_maps, mainbody_map)
+    end
+    # TODO Here! subtract o - o_mainbody for o_gp, condition GP, and sample. 
 end
 
 function update_particles(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
     wp = reweight(b.particles, b.weights, a, o)
-    pp = resample(b, wp)
+    pp = resample(up, b, wp)
 
 end
 # function ParticleFilters.update(pf::BasicParticleFilter, b::WeightedParticleBelief,
