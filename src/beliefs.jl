@@ -178,6 +178,7 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
         bp_stopped = o.stopped
     end
     bp_particles = update_particles(up, b, a, o)
+    bp_weights = ones(Float64, length(bp_particles))./length(bp_particles)
     bp_acts = MEAction[]
     bp_obs = MEObservation[]
     for act in b.acts
