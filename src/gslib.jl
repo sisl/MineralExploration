@@ -40,7 +40,22 @@ function data_to_string(data::RockObservations)
     str
 end
 
-function params_to_string(p::GSLIBDistribution, data_file, N, dir, seed=nothing)
+function data_to_string_2d(data::RockObservations)
+    str = """
+    data
+    3
+    x
+    y
+    poro
+    """
+    #TODO: Deal with cell-centered offsets?
+    for i=1:length(data)
+        str = string(str, data.coordinates[1,i] - 1, " ", data.coordinates[2,i] - 1, " ", data.ore_quals[i], "\n")
+    end
+    str
+end
+
+function sgsim_params_to_string(p::GSLIBDistribution, data_file, N, dir, seed=nothing)
     if seed == nothing
         seed = rand(1:10000000)
     end
@@ -85,12 +100,38 @@ $(p.variogram[6])  $(p.variogram[7])  $(p.variogram[8])     -a_hmax, a_hmin, a_v
 """
 end
 
-function write_params_to_file(p::GSLIBDistribution, N; dir="./", out_fn="sgsim.par", data_fn="data.txt")
-    data_file = write_string_to_file(string(dir, data_fn), data_to_string(p.data))
-    write_string_to_file(string(dir, out_fn), params_to_string(p, data_file, N, dir))
+function kb2d_params_to_string(p::GSLIBDistribution, data_file, dir)
+    """
+Parameters for KB2D
+********************
+
+START OF PARAMETERS:
+$data_file          -file with data
+1  2  3                          -columns for X,Y,KV
+-9999999 999999                  -trimming limits
+1                                -debugging level: 0,1,2,3
+$(dir)kb2d.dbg            -file for debugging output
+$(dir)kb2d.out            -file for simulation output
+$(p.n[1])    $(p.mn[1])    $(p.sz[1])                 -nx,xmn,xsiz
+$(p.n[2])    $(p.mn[2])    $(p.sz[1])               -ny,ymn,ysiz
+1   1                         -nxdis, nydis
+0     8                       -min and max original data for sim
+1000.0                         -radius
+0     0.60                 -ktype: 0=SK,1=OK,2=LVM,3=EXDR,
+$(p.nugget[1])    $(p.nugget[2])                     -nst, nugget effect
+$(p.variogram[1])    $(p.variogram[2])  $(p.variogram[3]) $(p.variogram[6])  $(p.variogram[7])      -it,cc,ang1,a_hmax, a_hmin
+"""
 end
 
-# run_quiet =
+function write_sgsim_params_to_file(p::GSLIBDistribution, N; dir="./", out_fn="sgsim.par", data_fn="data.txt")
+    data_file = write_string_to_file(string(dir, data_fn), data_to_string(p.data))
+    write_string_to_file(string(dir, out_fn), sgsim_params_to_string(p, data_file, N, dir))
+end
+
+function write_kb2d_params_to_file(p::GSLIBDistribution, obs::RockObservations; dir="./", out_fn="kb2d.par", data_fn="data.txt")
+    data_file = write_string_to_file(string(dir, data_fn), data_to_string_2d(obs))
+    write_string_to_file(string(dir, out_fn), kb2d_params_to_string(p, data_file, dir))
+end
 
 function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent::Bool=true)
     # Write the param file
@@ -98,7 +139,7 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
         stdout_orig = stdout
         (rd, wr) = redirect_stdout()
     end
-    fn = write_params_to_file(p, n; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
+    fn = write_sgsim_params_to_file(p, n; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
 
     # Run sgsim
     run(`sgsim $fn`)
@@ -118,3 +159,30 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
 end
 
 Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, n::Int64=1, dir::String="sgsim_output/") = Base.rand(p, n, dir)
+
+function kriging(p::GSLIBDistribution, obs::RockObservations, dir::String="kb2d_output/"; silent::Bool=true)
+    if silent
+        stdout_orig = stdout
+        (rd, wr) = redirect_stdout()
+    end
+    fn = write_kb2d_params_to_file(p, obs; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
+
+    # Run sgsim
+    run(`kb2d $fn`)
+
+    # Load the results and return
+    vals = CSV.File("$(dir)kb2d.out", skipto=5, header=false, delim=" ", silencewarnings=true, select=[1,6]) |> CSV.Tables.matrix
+    # reshape(vals, p.n..., N) # For multiple samples
+    idxs = isa.(vals[:, 2], Missing)
+    vals[idxs, 2] .= 1.0
+    μ = zeros(Float64, p.grid_dims[1], p.grid_dims[2])
+    σ² = zeros(Float64, p.grid_dims[1], p.grid_dims[2])
+    μ[:, :] = reshape(vals[:, 1], p.grid_dims[1], p.grid_dims[2])
+    σ²[:, :] = reshape(vals[:, 2], p.grid_dims[1], p.grid_dims[2])
+    if silent
+        redirect_stdout(stdout_orig)
+        close(rd)
+        close(wr)
+    end
+    return (μ, σ²)
+end

@@ -19,7 +19,8 @@ export
 include("common.jl")
 
 export
-        GSLIBDistribution
+        GSLIBDistribution,
+        kriging
 include("gslib.jl")
 
 
