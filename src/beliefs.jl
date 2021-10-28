@@ -58,20 +58,19 @@ function obs_weight(m::MineralExplorationPOMDP, s::MEState,
         mainbody_max = 1.0/(2*π*s.var)
         o_gp = (o.ore_quality - o_mainbody/mainbody_max*m.mainbody_weight)*(0.6/m.gp_weight)
         # o_gp = o.ore_quality - o_mainbody
-        # println(s.bore_coords)
         if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
             mu = 0.6
             sigma = 1.0
         else
-            gslib_dist = GSLIBDistribution(m)
-            prior_ore = Float64[]
-            for i =1:size(s.bore_coords[2])
-                push!(prior_ore, ore_map[s.bore_coords[1, i], s.bore_coords[2, i], 1])
-            end
-            prior_obs = RockObservations(prior_ore, s.bore_coords)
-            μ, σ² = kriging(gslib_dist, prior_obs)
-            mu = μ[a.coords]
-            sigma = sqrt(σ²[a.coords])
+            # gslib_dist = GSLIBDistribution(m)
+            # prior_ore = Float64[]
+            # for i =1:size(s.bore_coords)[2]
+            #     push!(prior_ore, s.ore_map[s.bore_coords[1, i], s.bore_coords[2, i], 1])
+            # end
+            # prior_obs = RockObservations(prior_ore, s.bore_coords)
+            # μ, σ² = kriging(gslib_dist, prior_obs)
+            # mu = μ[a.coords]
+            # sigma = sqrt(σ²[a.coords])
         end
         point_dist = Normal(mu, sigma)
         w = pdf(point_dist, o_gp)
@@ -79,12 +78,57 @@ function obs_weight(m::MineralExplorationPOMDP, s::MEState,
     return w
 end
 
+function variogram(x, y, a, c) # point 1, point 2, range, sill
+    h = sqrt(sum((x - y).^2))
+    c*(1.5*h/a - 0.5*(h/a)^3)
+end
+
 function reweight(up::MEBeliefUpdater, particles::Vector{MEState},
                 weights::Vector{Float64}, a::MEAction, o::MEObservation)
     b0 = Float64[w for w in weights]
     po_s = Float64[]
+    if a.type == :drill
+        bore_coords = particles[1].bore_coords
+        n = size(bore_coords)[2]
+        K = zeros(Float64, n, n)
+        k = zeros(Float64, n, 1)
+        a0 = Float64[a.coords[1] a.coords[2]]
+        for i = 1:n
+            a1 = Float64[bore_coords[1, i] bore_coords[2, i]]
+            k[i, 1] = up.m.variogram[8] - variogram(a0, a1, up.m.variogram[6], up.m.variogram[8])
+            for j = 1:n
+                a2 = Float64[bore_coords[1, j] bore_coords[2, j]]
+                K[i, j] = up.m.variogram[8] - variogram(a1, a2, up.m.variogram[6], up.m.variogram[8])
+            end
+        end
+        α = transpose(k)/K
+        σ² = up.m.variogram[8] - variogram(a0, a0, up.m.variogram[6], up.m.variogram[8])
+        σ² -= α*k
+    end
     for s in particles
-        push!(po_s, obs_weight(up.m, s, a, s, o))
+        # push!(po_s, obs_weight(up.m, s, a, s, o))
+        if a.type != :drill
+            w = o.ore_quality == nothing ? 1.0 : 0.0
+        else
+            mainbody_cov = [s.var 0.0; 0.0 s.var]
+            mainbody_dist = MvNormal(m.mainbody_loc, mainbody_cov)
+            mainbody_max = 1.0/(2*π*s.var)
+            if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
+                μ = 0.6
+            else
+                prior_ore = Float64[]
+                for i =1:size(s.bore_coords)[2]
+                    push!(prior_ore, pdf(mainbody_dist, [float(bore_coords[1, i]), float(bore_coords[2, i])]))
+                end
+                prior_obs = (b.obs - prior_ore./mainbody_max.*m.mainbody_weight).*(0.6/m.gp_weight)
+                μ = 0.6 + α*prior_obs
+            end
+            o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
+            o_gp = (o.ore_quality - o_mainbody/mainbody_max*m.mainbody_weight)*(0.6/m.gp_weight)
+            point_dist = Normal(μ, sqrt(σ²))
+            w = pdf(point_dist, o_gp)
+        end
+        push!(po_s, w)
     end
     bp = b0.*po_s
     bp ./= sum(bp)
@@ -135,8 +179,6 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
         gp_ore_map .*= up.m.gp_weight
         clamp!(gp_ore_map, 0.0, up.m.massive_threshold)
         mainbody_map = repeat(mainbody_map, outer=(1, 1, 8))
-        # println(size(gp_ore_map))
-        # println(size(mainbody_map))
         ore_map = gp_ore_map + mainbody_map
         clamp!(ore_map, 0.0, 1.0)
         new_state = MEState(ore_map, mainbody_vars[j],
@@ -147,22 +189,18 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
 end
 
 function update_particles(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
-    wp = reweight(up, b.particles, b.weights, a, o)
-    pp = resample(up, b, wp, a, o)
+    if a.type == :drill
+        wp = reweight(up, b.particles, b.weights, a, o)
+        pp = resample(up, b, wp, a, o)
+    else
+        pp = MEState[]
+        for p in b.particles
+            s = MEState(p.ore_map, p.var, p.bore_coords, o.stopped, o.decided)
+            push!(pp, s)
+        end
+    end
     return pp
 end
-# function ParticleFilters.update(pf::BasicParticleFilter, b::WeightedParticleBelief,
-#                                 a::Any, o::Any)
-#
-#     # S = typeof(b.particles[1])
-#     # pm = S[]
-#     # wm = Float64[]
-#     # ParticleFilters.predict!(pm, pf.predict_model, b, a, pf.rng)
-#     # ParticleFilters.reweight!(wm, pf.reweight_model, b, a, pm, o, pf.rng)
-#     # bp = WeightedParticleBelief(pm, wm)
-#     # bp = ParticleFilters.resample(pf.resampler, bp, pf.rng)
-#     # return bp
-# end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::MEAction, o::MEObservation)
@@ -194,22 +232,22 @@ end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)
     s0 = rand(rng, b.particles)
-    return MEState(s0.ore_map, s0.bore_coords, b.stopped, false)
+    return MEState(s0.ore_map, s0.var, s0.bore_coords, b.stopped, false)
 end
 
 Base.rand(b::MEBelief) = rand(Random.GLOBAL_RNG, b)
 
 function summarize(b::MEBelief)
-    (x, y, z) = size(b.particles.particles[1].ore_map)
+    (x, y, z) = size(b.particles[1].ore_map)
     μ = zeros(Float64, x, y, z)
-    for (i, p) in enumerate(b.particles.particles)
-        w = b.particles.weights[i]
+    for (i, p) in enumerate(b.particles)
+        w = b.weights[i]
         ore_map = convert(Array{Float64, 3}, p.ore_map)
         μ .+= ore_map .* w
     end
     σ² = zeros(Float64, x, y, z)
-    for (i, p) in enumerate(b.particles.particles)
-        w = b.particles.weights[i]
+    for (i, p) in enumerate(b.particles)
+        w = b.weights[i]
         ore_map = convert(Array{Float64, 3}, p.ore_map)
         σ² .+= w*(ore_map - μ).^2
     end

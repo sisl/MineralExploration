@@ -110,15 +110,14 @@ function POMCPOW.BasicPOMCP.extract_belief(p::MEBeliefUpdater, node::POMCPOW.Bel
         push!(weights, weight)
     end
     weights ./= sum(weights)
-    particle_set = WeightedParticleBelief(particles, weights)
-    return MEBelief(coords, stopped, particle_set)
+    return MEBelief(coords, stopped, weights, particles, MEAction[], MEObservation[])
 end
 
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     if b.stopped
         volumes = Float64[]
-        weights = b.particles.weights
-        for s in b.particles.particles
+        weights = b.weights
+        for s in b.particles
             v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
             push!(volumes, v)
         end
@@ -152,8 +151,8 @@ end
 function POMDPs.action(p::ExpertPolicy, b::POMCPOW.StateBelief)
     if b.stopped
         volumes = Float64[]
-        weights = b.particles.weights
-        for s in b.particles.particles
+        weights = b.weights
+        for s in b.particles
             v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
             push!(volumes, v)
         end

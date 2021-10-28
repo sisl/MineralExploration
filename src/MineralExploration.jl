@@ -10,6 +10,7 @@ using CSV
 using Parameters
 using StatsBase
 using Distributions
+using LinearAlgebra
 
 export
         MEState,
