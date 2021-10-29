@@ -6,12 +6,14 @@ using POMCPOW
 using Plots
 using ParticleFilters
 
+using POMDPPolicies
+
 using ProfileView
 
 using MineralExploration
 
 N_INITIAL = 0
-MAX_BORES = 10
+MAX_BORES = 5
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1)
 initialize_data!(m, N_INITIAL)
@@ -20,10 +22,10 @@ ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
 up = MEBeliefUpdater(m, 100)
-b0 = POMDPs.initialize_belief(up, ds0)
+# b0 = POMDPs.initialize_belief(up, ds0)
 
 policy = ExpertPolicy(m)
-
+policy = RandomPolicy(m)
 # @profview POMDPs.action(policy, b0)
 # @profview POMDPs.action(policy, b0)
 
@@ -49,7 +51,12 @@ for (s, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "s,a,r,bp,t", max_ste
     b_new = bp
     @show t
     @show a
+    @show a.coords
     @show r
+
+    @show s.var
+    mean_var = MineralExploration.mean_var(bp)
+    @show mean_var
     println("==========")
     fig = plot(bp, t)
     str = "./data/example/belief_$t.png"

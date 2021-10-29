@@ -24,7 +24,7 @@ end
 
 function GSLIBDistribution(p::MineralExplorationPOMDP)
     return GSLIBDistribution(grid_dims=p.grid_dim, n=p.grid_dim,
-            data=p.initial_data, variogram=p.variogram, nugget=p.nugget)
+            data=deepcopy(p.initial_data), variogram=p.variogram, nugget=p.nugget)
 end
 
 """

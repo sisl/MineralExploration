@@ -113,6 +113,7 @@ function reweight(up::MEBeliefUpdater, particles::Vector{MEState},
             α = transpose(k)/K
             σ² = up.m.variogram[8] - variogram(a0, a0, up.m.variogram[6], up.m.variogram[8])
             σ² -= (α*k)[1]
+            println("σ²: $σ²")
         end
     end
     for s in particles
@@ -131,21 +132,19 @@ function reweight(up::MEBeliefUpdater, particles::Vector{MEState},
                     push!(prior_ore, pdf(mainbody_dist, [float(bore_coords[1, i]), float(bore_coords[2, i])]))
                 end
                 n_prior_obs = (prior_obs - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight)
-                μ = (α*n_prior_obs)[1]
-                # println("μ: $μ")
+                μ = 0.6 + (α*(n_prior_obs .- 0.6))[1]
             end
             o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
             o_gp = (o.ore_quality - o_mainbody/mainbody_max*up.m.mainbody_weight)*(0.6/up.m.gp_weight)
+            # println("μ: $μ")
             # println("o: $o_gp")
             point_dist = Normal(μ, sqrt(σ²))
             w = pdf(point_dist, o_gp)
         end
         push!(po_s, w)
     end
-    # println("STOP")
-    # println(po_s)
     bp = b0.*po_s
-    bp ./= sum(bp)
+    bp ./= sum(bp) + 1e-6
     return bp
 end
 
@@ -186,31 +185,24 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
     for (j, mainbody_map) in enumerate(mainbody_maps)
         n_ore_quals = Float64[]
         mainbody_max = mainbody_maxs[j]
-        println("FOO")
         for (i, ore_qual) in enumerate(ore_quals)
             # n_ore_qual = ore_qual - mainbody_map[ore_coords[1, i], ore_coords[2, i]]
             prior_ore = mainbody_map[ore_coords[1, i], ore_coords[2, i]]
-            n_ore_qual = (ore_qual - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight)
-            # n_ore_qual = (ore_qual - prior_ore).*(0.6/up.m.gp_weight) +0.6
-            println(n_ore_qual)
-            println(prior_ore)
-            println("EE")
+            # n_ore_qual = (ore_qual - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight) - 0.6
+            n_ore_qual = (ore_qual - prior_ore).*(0.6/up.m.gp_weight)
             push!(n_ore_quals, n_ore_qual)
         end
         gslib_dist.data.ore_quals = n_ore_quals
         gp_ore_map = Base.rand(up.rng, gslib_dist)
-        println(gp_ore_map[ore_coords[1, 1], ore_coords[2, 1], 1])
         mean_gp = mean(gp_ore_map)
         gp_ore_map ./= 0.6
         gp_ore_map .*= up.m.gp_weight
         clamp!(gp_ore_map, 0.0, up.m.massive_threshold)
-        mainbody_map = repeat(mainbody_map, outer=(1, 1, 8))
-        ore_map = gp_ore_map .+ mainbody_map
+        mainbody_map_3d = repeat(mainbody_map, outer=(1, 1, 8))
+        ore_map = gp_ore_map .+ mainbody_map_3d
+
         clamp!(ore_map, 0.0, 1.0)
 
-        println(ore_map[ore_coords[1, 1], ore_coords[2, 1], 1])
-        println("BAR")
-        STOP
         new_state = MEState(ore_map, mainbody_vars[j],
                 gslib_dist.data.coordinates, false, false)
         push!(particles, new_state)
@@ -356,6 +348,11 @@ function POMDPs.actions(m::MineralExplorationPOMDP, o::MEObservation)
         return collect(action_set)
     end
     return MEAction[]
+end
+
+function mean_var(b::MEBelief)
+    vars = [s.var for s in b.particles]
+    sum(b.weights.*vars)
 end
 
 function Plots.plot(b::MEBelief, t=nothing)
