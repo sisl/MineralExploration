@@ -132,9 +132,6 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
         end
     else
         actions = POMDPs.actions(p.m, b)
-        if b.bore_coords != nothing
-            println(size(b.bore_coords))
-        end
         mean, var = summarize(b)
         mean = mean[:, : , 1]
         max_val = -Inf

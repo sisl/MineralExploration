@@ -13,7 +13,7 @@ using ProfileView
 using MineralExploration
 
 N_INITIAL = 0
-MAX_BORES = 5
+MAX_BORES = 25
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1)
 initialize_data!(m, N_INITIAL)

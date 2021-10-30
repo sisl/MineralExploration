@@ -83,70 +83,121 @@ function variogram(x, y, a, c) # point 1, point 2, range, sill
     c*(1.5*h/a - 0.5*(h/a)^3)
 end
 
-function reweight(up::MEBeliefUpdater, particles::Vector{MEState},
+function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
                 weights::Vector{Float64}, a::MEAction, o::MEObservation)
     b0 = Float64[w for w in weights]
     po_s = Float64[]
-    prior_obs = Float64[]
-    if a.type == :drill
-        bore_coords = particles[1].bore_coords
-        n = size(bore_coords)[2]
-        if n == 0
-            α = 0.0
-            σ² = up.m.variogram[8]
-        else
-            K = zeros(Float64, n, n)
-            k = zeros(Float64, n, 1)
-            a0 = Float64[a.coords[1] a.coords[2]]
-            for i = 1:n
-                a1 = Float64[bore_coords[1, i] bore_coords[2, i]]
-                k[i, 1] = up.m.variogram[8] - variogram(a0, a1, up.m.variogram[6], up.m.variogram[8])
-                push!(prior_obs, particles[1].ore_map[bore_coords[1, i], bore_coords[1, i], 1])
-                for j = 1:n
-                    a2 = Float64[bore_coords[1, j] bore_coords[2, j]]
-                    K[i, j] = up.m.variogram[8] - variogram(a1, a2, up.m.variogram[6], up.m.variogram[8])
-                    if i == j
-                        K[i, j] += 1e-6
-                    end
-                end
+    bore_coords = particles[1].bore_coords
+    n = size(bore_coords)[2]
+    bore_coords = hcat(bore_coords, [a.coords[1], a.coords[2]])
+    ore_obs = [o.ore_quality for o in b.obs]
+    println(length(ore_obs))
+    push!(ore_obs, o.ore_quality)
+    K = zeros(Float64, n+1, n+1)
+    for i = 1:n+1
+        for j = 1:n+1
+            K[i, j] = clamp(up.m.variogram[8] - variogram(bore_coords[:, i], bore_coords[:, j], up.m.variogram[6], up.m.variogram[8]), 0.0, Inf)
+            if i == j
+                K[i, j] += 1e-3
             end
-            α = transpose(k)/K
-            σ² = up.m.variogram[8] - variogram(a0, a0, up.m.variogram[6], up.m.variogram[8])
-            σ² -= (α*k)[1]
-            println("σ²: $σ²")
         end
     end
+    println(n+1)
+    println(length(ore_obs))
     for s in particles
-        # push!(po_s, obs_weight(up.m, s, a, s, o))
-        if a.type != :drill
-            w = o.ore_quality == nothing ? 1.0 : 0.0
-        else
-            mainbody_cov = [s.var 0.0; 0.0 s.var]
-            mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
-            mainbody_max = 1.0/(2*π*s.var)
-            if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
-                μ = 0.6
-            else
-                prior_ore = Float64[]
-                for i =1:size(s.bore_coords)[2]
-                    push!(prior_ore, pdf(mainbody_dist, [float(bore_coords[1, i]), float(bore_coords[2, i])]))
-                end
-                n_prior_obs = (prior_obs - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight)
-                μ = 0.6 + (α*(n_prior_obs .- 0.6))[1]
-            end
-            o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
-            o_gp = (o.ore_quality - o_mainbody/mainbody_max*up.m.mainbody_weight)*(0.6/up.m.gp_weight)
-            # println("μ: $μ")
-            # println("o: $o_gp")
-            point_dist = Normal(μ, sqrt(σ²))
-            w = pdf(point_dist, o_gp)
+        mainbody_cov = [s.var 0.0; 0.0 s.var]
+        mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
+        mainbody_max = 1.0/(2*π*s.var)
+
+        # gp_dist = MvNormal(0.6, up.m.variogram[8]) # TODO this is an approximation of the MV Gauss from the GP
+        w = 1.0
+        o_n = zeros(Float64, n+1)
+        for i = 1:n+1
+            o_mainbody = pdf(mainbody_dist, bore_coords[:, i]) # TODO
+            o_n[i] = (ore_obs[i] - o_mainbody)*0.6/up.m.gp_weight
         end
+        mu = zeros(Float64, n+1) .+ 0.6
+        gp_dist = MvNormal(mu, K)
+        # n_prior_obs = (prior_obs - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight)
+        # μ = 0.6 + (α*(n_prior_obs .- 0.6))[1]
+        # o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
+        # o_gp = (o.ore_quality - o_mainbody/mainbody_max*up.m.mainbody_weight)*(0.6/up.m.gp_weight)
+        # # println("μ: $μ")
+        # # println("o: $o_gp")
+        # point_dist = Normal(μ, sqrt(σ²))
+        # w = pdf(point_dist, o_gp)
+        w = pdf(gp_dist, o_n)
         push!(po_s, w)
     end
     bp = b0.*po_s
     bp ./= sum(bp) + 1e-6
     return bp
 end
+
+# function reweight(up::MEBeliefUpdater, particles::Vector{MEState},
+#                 weights::Vector{Float64}, a::MEAction, o::MEObservation)
+#     b0 = Float64[w for w in weights]
+#     po_s = Float64[]
+#     prior_obs = Float64[]
+#     if a.type == :drill
+#         bore_coords = particles[1].bore_coords
+#         n = size(bore_coords)[2]
+#         if n == 0
+#             α = 0.0
+#             σ² = up.m.variogram[8]
+#         else
+#             K = zeros(Float64, n, n)
+#             k = zeros(Float64, n, 1)
+#             a0 = Float64[a.coords[1] a.coords[2]]
+#             for i = 1:n
+#                 a1 = Float64[bore_coords[1, i] bore_coords[2, i]]
+#                 k[i, 1] = up.m.variogram[8] - variogram(a0, a1, up.m.variogram[6], up.m.variogram[8])
+#                 push!(prior_obs, particles[1].ore_map[bore_coords[1, i], bore_coords[1, i], 1])
+#                 for j = 1:n
+#                     a2 = Float64[bore_coords[1, j] bore_coords[2, j]]
+#                     K[i, j] = up.m.variogram[8] - variogram(a1, a2, up.m.variogram[6], up.m.variogram[8])
+#                     if i == j
+#                         K[i, j] += 1e-6
+#                     end
+#                 end
+#             end
+#             α = transpose(k)/K
+#             σ² = up.m.variogram[8] - variogram(a0, a0, up.m.variogram[6], up.m.variogram[8])
+#             σ² -= (α*k)[1]
+#             println("σ²: $σ²")
+#         end
+#     end
+#     for s in particles
+#         # push!(po_s, obs_weight(up.m, s, a, s, o))
+#         if a.type != :drill
+#             w = o.ore_quality == nothing ? 1.0 : 0.0
+#         else
+#             mainbody_cov = [s.var 0.0; 0.0 s.var]
+#             mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
+#             mainbody_max = 1.0/(2*π*s.var)
+#             if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
+#                 μ = 0.6
+#             else
+#                 prior_ore = Float64[]
+#                 for i =1:size(s.bore_coords)[2]
+#                     push!(prior_ore, pdf(mainbody_dist, [float(bore_coords[1, i]), float(bore_coords[2, i])]))
+#                 end
+#                 n_prior_obs = (prior_obs - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight)
+#                 μ = 0.6 + (α*(n_prior_obs .- 0.6))[1]
+#             end
+#             o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
+#             o_gp = (o.ore_quality - o_mainbody/mainbody_max*up.m.mainbody_weight)*(0.6/up.m.gp_weight)
+#             # println("μ: $μ")
+#             # println("o: $o_gp")
+#             point_dist = Normal(μ, sqrt(σ²))
+#             w = pdf(point_dist, o_gp)
+#         end
+#         push!(po_s, w)
+#     end
+#     bp = b0.*po_s
+#     bp ./= sum(bp) + 1e-6
+#     return bp
+# end
 
 function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAction, o::MEObservation)
 
@@ -212,7 +263,7 @@ end
 
 function update_particles(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
     if a.type == :drill
-        wp = reweight(up, b.particles, b.weights, a, o)
+        wp = reweight(up, b, b.particles, b.weights, a, o)
         pp = resample(up, b, wp, a, o)
     else
         pp = MEState[]
@@ -226,6 +277,9 @@ end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::MEAction, o::MEObservation)
+    println("HERE")
+    STOP
+    println(a.type)
     if a.type != :drill
         bp_coords = b.bore_coords
         bp_stopped = true
