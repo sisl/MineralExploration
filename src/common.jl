@@ -29,7 +29,6 @@ end
 # struct MEBelief
 #     bore_coords::Union{Nothing, Matrix{Int64}}
 #     stopped::Bool
-#     weights::Vector{Float64}
 #     particles::Vector{MEState}
 #     acts::Vector{MEAction}
 #     obs::Vector{MEObservation}

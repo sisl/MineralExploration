@@ -2,7 +2,6 @@
 struct MEBelief
     bore_coords::Union{Nothing, Matrix{Int64}}
     stopped::Bool
-    weights::Vector{Float64}
     particles::Vector{MEState}
     acts::Vector{MEAction}
     obs::Vector{MEObservation}
@@ -19,79 +18,31 @@ MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int;
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     particles = MEState[]
-    weights = Float64[]
-    w0 = 1.0/up.n
     for i = 1:up.n
         s = rand(d)
         push!(particles, s)
-        push!(weights, w0)
     end
     acts = MEAction[]
     obs = MEObservation[]
-    return MEBelief(nothing, false, weights, particles, acts, obs)
-end
-
-# function ParticleFilters.reweight!(wm, m::MineralExplorationPOMDP, b::WeightedParticleBelief,
-#                             a::MEAction, pm, y::MEObservation, rng::AbstractRNG=Random.GLOBAL_RNG)
-#     b0 = Float64[w for w in b.weights]
-#     po_s = Float64[]
-#     for s in pm
-#         push!(po_s, obs_weight(m, s, a, s, y))
-#     end
-#     bp = b0.*po_s
-#     bp ./= sum(bp)
-#     for w in bp
-#         push!(wm, w)
-#     end
-# end
-
-function obs_weight(m::MineralExplorationPOMDP, s::MEState,
-                    a::MEAction, sp::MEState, o::MEObservation)
-    w = 0.0
-    if a.type != :drill
-        w = o.ore_quality == nothing ? 1.0 : 0.0
-    else
-        mainbody_cov = [s.var 0.0; 0.0 s.var]
-        mainbody_dist = MvNormal(m.mainbody_loc, mainbody_cov)
-        o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
-
-        mainbody_max = 1.0/(2*π*s.var)
-        o_gp = (o.ore_quality - o_mainbody/mainbody_max*m.mainbody_weight)*(0.6/m.gp_weight)
-        # o_gp = o.ore_quality - o_mainbody
-        if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
-            mu = 0.6
-            sigma = 1.0
-        else
-            # gslib_dist = GSLIBDistribution(m)
-            # prior_ore = Float64[]
-            # for i =1:size(s.bore_coords)[2]
-            #     push!(prior_ore, s.ore_map[s.bore_coords[1, i], s.bore_coords[2, i], 1])
-            # end
-            # prior_obs = RockObservations(prior_ore, s.bore_coords)
-            # μ, σ² = kriging(gslib_dist, prior_obs)
-            # mu = μ[a.coords]
-            # sigma = sqrt(σ²[a.coords])
-        end
-        point_dist = Normal(mu, sigma)
-        w = pdf(point_dist, o_gp)
-    end
-    return w
+    return MEBelief(nothing, false, particles, acts, obs)
 end
 
 function variogram(x, y, a, c) # point 1, point 2, range, sill
     h = sqrt(sum((x - y).^2))
-    c*(1.5*h/a - 0.5*(h/a)^3)
+    if h <= a
+        return c*(1.5*h/a - 0.5*(h/a)^3)
+    else
+        return c
+    end
 end
 
 function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
-                weights::Vector{Float64}, a::MEAction, o::MEObservation)
-    b0 = Float64[w for w in weights]
+                a::MEAction, o::MEObservation)
     po_s = Float64[]
     bore_coords = particles[1].bore_coords
     n = size(bore_coords)[2]
     bore_coords = hcat(bore_coords, [a.coords[1], a.coords[2]])
     ore_obs = [o.ore_quality for o in b.obs]
-    println(length(ore_obs))
     push!(ore_obs, o.ore_quality)
     K = zeros(Float64, n+1, n+1)
     for i = 1:n+1
@@ -102,8 +53,6 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
             end
         end
     end
-    println(n+1)
-    println(length(ore_obs))
     for s in particles
         mainbody_cov = [s.var 0.0; 0.0 s.var]
         mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
@@ -117,87 +66,19 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
             o_n[i] = (ore_obs[i] - o_mainbody)*0.6/up.m.gp_weight
         end
         mu = zeros(Float64, n+1) .+ 0.6
+        try
+            MvNormal(mu, K)
+        catch
+            println(K)
+            STOP
+        end
         gp_dist = MvNormal(mu, K)
-        # n_prior_obs = (prior_obs - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight)
-        # μ = 0.6 + (α*(n_prior_obs .- 0.6))[1]
-        # o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
-        # o_gp = (o.ore_quality - o_mainbody/mainbody_max*up.m.mainbody_weight)*(0.6/up.m.gp_weight)
-        # # println("μ: $μ")
-        # # println("o: $o_gp")
-        # point_dist = Normal(μ, sqrt(σ²))
-        # w = pdf(point_dist, o_gp)
         w = pdf(gp_dist, o_n)
         push!(po_s, w)
     end
-    bp = b0.*po_s
-    bp ./= sum(bp) + 1e-6
-    return bp
+    po_s ./= sum(po_s) + 1e-6
+    return po_s
 end
-
-# function reweight(up::MEBeliefUpdater, particles::Vector{MEState},
-#                 weights::Vector{Float64}, a::MEAction, o::MEObservation)
-#     b0 = Float64[w for w in weights]
-#     po_s = Float64[]
-#     prior_obs = Float64[]
-#     if a.type == :drill
-#         bore_coords = particles[1].bore_coords
-#         n = size(bore_coords)[2]
-#         if n == 0
-#             α = 0.0
-#             σ² = up.m.variogram[8]
-#         else
-#             K = zeros(Float64, n, n)
-#             k = zeros(Float64, n, 1)
-#             a0 = Float64[a.coords[1] a.coords[2]]
-#             for i = 1:n
-#                 a1 = Float64[bore_coords[1, i] bore_coords[2, i]]
-#                 k[i, 1] = up.m.variogram[8] - variogram(a0, a1, up.m.variogram[6], up.m.variogram[8])
-#                 push!(prior_obs, particles[1].ore_map[bore_coords[1, i], bore_coords[1, i], 1])
-#                 for j = 1:n
-#                     a2 = Float64[bore_coords[1, j] bore_coords[2, j]]
-#                     K[i, j] = up.m.variogram[8] - variogram(a1, a2, up.m.variogram[6], up.m.variogram[8])
-#                     if i == j
-#                         K[i, j] += 1e-6
-#                     end
-#                 end
-#             end
-#             α = transpose(k)/K
-#             σ² = up.m.variogram[8] - variogram(a0, a0, up.m.variogram[6], up.m.variogram[8])
-#             σ² -= (α*k)[1]
-#             println("σ²: $σ²")
-#         end
-#     end
-#     for s in particles
-#         # push!(po_s, obs_weight(up.m, s, a, s, o))
-#         if a.type != :drill
-#             w = o.ore_quality == nothing ? 1.0 : 0.0
-#         else
-#             mainbody_cov = [s.var 0.0; 0.0 s.var]
-#             mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
-#             mainbody_max = 1.0/(2*π*s.var)
-#             if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
-#                 μ = 0.6
-#             else
-#                 prior_ore = Float64[]
-#                 for i =1:size(s.bore_coords)[2]
-#                     push!(prior_ore, pdf(mainbody_dist, [float(bore_coords[1, i]), float(bore_coords[2, i])]))
-#                 end
-#                 n_prior_obs = (prior_obs - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight)
-#                 μ = 0.6 + (α*(n_prior_obs .- 0.6))[1]
-#             end
-#             o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
-#             o_gp = (o.ore_quality - o_mainbody/mainbody_max*up.m.mainbody_weight)*(0.6/up.m.gp_weight)
-#             # println("μ: $μ")
-#             # println("o: $o_gp")
-#             point_dist = Normal(μ, sqrt(σ²))
-#             w = pdf(point_dist, o_gp)
-#         end
-#         push!(po_s, w)
-#     end
-#     bp = b0.*po_s
-#     bp ./= sum(bp) + 1e-6
-#     return bp
-# end
 
 function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAction, o::MEObservation)
 
@@ -262,37 +143,30 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
 end
 
 function update_particles(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
-    if a.type == :drill
-        wp = reweight(up, b, b.particles, b.weights, a, o)
-        pp = resample(up, b, wp, a, o)
-    else
-        pp = MEState[]
-        for p in b.particles
-            s = MEState(p.ore_map, p.var, p.bore_coords, o.stopped, o.decided)
-            push!(pp, s)
-        end
-    end
-    return pp
+    wp = reweight(up, b, b.particles, a, o)
+    pp = resample(up, b, wp, a, o)
 end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::MEAction, o::MEObservation)
-    println("HERE")
-    STOP
-    println(a.type)
     if a.type != :drill
         bp_coords = b.bore_coords
-        bp_stopped = true
+        bp_particles = MEState[]
+        for p in b.particles
+            s = MEState(p.ore_map, p.var, p.bore_coords, o.stopped, o.decided)
+            push!(bp_particles, s)
+        end
     else
         if b.bore_coords == nothing
             bp_coords = reshape([a.coords[1], a.coords[2]], 2, 1)
         else
             bp_coords = hcat(b.bore_coords, [a.coords[1], a.coords[2]])
         end
-        bp_stopped = o.stopped
+        bp_particles = update_particles(up, b, a, o)
     end
-    bp_particles = update_particles(up, b, a, o)
-    bp_weights = ones(Float64, length(bp_particles))./length(bp_particles)
+    bp_stopped = o.stopped
+    bp_decided = o.decided
+
     bp_acts = MEAction[]
     bp_obs = MEObservation[]
     for act in b.acts
@@ -303,7 +177,7 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
         push!(bp_obs, obs)
     end
     push!(bp_obs, o)
-    return MEBelief(bp_coords, bp_stopped, bp_weights, bp_particles, bp_acts, bp_obs)
+    return MEBelief(bp_coords, bp_stopped, bp_particles, bp_acts, bp_obs)
 end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)
@@ -316,14 +190,13 @@ Base.rand(b::MEBelief) = rand(Random.GLOBAL_RNG, b)
 function summarize(b::MEBelief)
     (x, y, z) = size(b.particles[1].ore_map)
     μ = zeros(Float64, x, y, z)
+    w = 1.0/length(b.particles)
     for (i, p) in enumerate(b.particles)
-        w = b.weights[i]
         ore_map = convert(Array{Float64, 3}, p.ore_map)
         μ .+= ore_map .* w
     end
     σ² = zeros(Float64, x, y, z)
     for (i, p) in enumerate(b.particles)
-        w = b.weights[i]
         ore_map = convert(Array{Float64, 3}, p.ore_map)
         σ² .+= w*(ore_map - μ).^2
     end
@@ -406,7 +279,12 @@ end
 
 function mean_var(b::MEBelief)
     vars = [s.var for s in b.particles]
-    sum(b.weights.*vars)
+    mean(vars)
+end
+
+function std_var(b::MEBelief)
+    vars = [s.var for s in b.particles]
+    std(vars)
 end
 
 function Plots.plot(b::MEBelief, t=nothing)
