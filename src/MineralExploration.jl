@@ -9,6 +9,7 @@ using Plots
 using CSV
 using Parameters
 using StatsBase
+using Statistics
 using Distributions
 using LinearAlgebra
 

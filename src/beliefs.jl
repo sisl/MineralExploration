@@ -66,12 +66,6 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
             o_n[i] = (ore_obs[i] - o_mainbody)*0.6/up.m.gp_weight
         end
         mu = zeros(Float64, n+1) .+ 0.6
-        try
-            MvNormal(mu, K)
-        catch
-            println(K)
-            STOP
-        end
         gp_dist = MvNormal(mu, K)
         w = pdf(gp_dist, o_n)
         push!(po_s, w)
@@ -83,10 +77,17 @@ end
 function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAction, o::MEObservation)
 
     sampled_states = sample(up.rng, b.particles, StatsBase.Weights(wp), up.n, replace=true)
-    mainbody_vars = [s.var for s in sampled_states]
+    sampled_vars = [s.var for s in sampled_states]
+    mainbody_vars = Float64[]
+    # mainbody_vars = [s.var for s in sampled_states]
     mainbody_maps = Matrix{Float64}[]
     mainbody_maxs = Float64[]
-    for mainbody_var in mainbody_vars
+    for mainbody_var in sampled_vars
+        if mainbody_var ∈ mainbody_vars
+            mainbody_var += randn()
+            mainbody_var = clamp(mainbody_var, 0.0, Inf)
+        end
+        push!(mainbody_vars, mainbody_var)
         mainbody_map = zeros(Float64, Int(up.m.grid_dim[1]), Int(up.m.grid_dim[2]))
         cov = [mainbody_var 0.0; 0.0 mainbody_var]
         mvnorm = MvNormal(up.m.mainbody_loc, cov)
@@ -182,7 +183,7 @@ end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)
     s0 = rand(rng, b.particles)
-    return MEState(s0.ore_map, s0.var, s0.bore_coords, b.stopped, false)
+    return MEState(deepcopy(s0.ore_map), s0.var, deepcopy(s0.bore_coords), b.stopped, false)
 end
 
 Base.rand(b::MEBelief) = rand(Random.GLOBAL_RNG, b)
