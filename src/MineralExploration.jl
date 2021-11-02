@@ -39,7 +39,8 @@ include("beliefs.jl")
 
 export
         NextActionSampler,
-        ExpertPolicy
+        ExpertPolicy,
+        leaf_estimation
 include("solver.jl")
 
 end

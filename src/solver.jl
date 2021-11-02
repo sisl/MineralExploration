@@ -92,13 +92,14 @@ struct ExpertPolicy <: Policy
     m::MineralExplorationPOMDP
 end
 
-POMCPOW.updater(p::ExpertPolicy) = MEBeliefUpdater(p.m, 0)
+POMCPOW.updater(p::ExpertPolicy) = MEBeliefUpdater(p.m, 1)
 
 function POMCPOW.BasicPOMCP.extract_belief(p::MEBeliefUpdater, node::POMCPOW.BeliefNode)
     srb = node.tree.sr_beliefs[node.node]
     cv = srb.dist
     particles = MEState[]
     weights = Float64[]
+    state = nothing
     coords = nothing
     stopped = false
     for (idx, item) in enumerate(cv.items)
@@ -109,78 +110,42 @@ function POMCPOW.BasicPOMCP.extract_belief(p::MEBeliefUpdater, node::POMCPOW.Bel
         push!(particles, state)
         push!(weights, weight)
     end
-    return MEBelief(coords, stopped, particles, MEAction[], MEObservation[])
+    acts = MEAction[]
+    obs = MEObservation[]
+    for i = 1:size(state.bore_coords)[2]
+        a = MEAction(coords=CartesianIndex((state.bore_coords[1, i], state.bore_coords[2, i])))
+        ore_qual = state.ore_map[state.bore_coords[1, i], state.bore_coords[2, i], 1]
+        o = MEObservation(ore_qual, state.stopped, state.decided)
+        push!(acts, a)
+        push!(obs, o)
+    end
+    return MEBelief(coords, stopped, particles, acts, obs)
 end
 
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
-    if b.stopped
-        volumes = Float64[]
-        # weights = b.weights
-        for s in b.particles
-            v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
-            push!(volumes, v)
-        end
-        # mean_volume = sum(weights.*volumes)
-        mean_volume = Statistics.mean(volumes)
-        # volume_var = sum(weights.*(volumes .- mean_volume).^2)
-        volume_var = Statistics.var(volumes)
-        volume_std = sqrt(volume_var)
-        lcb = mean_volume - volume_std
-        if lcb >= p.m.extraction_cost
-            return MEAction(type=:mine)
-        else
-            return MEAction(type=:abandon)
-        end
-    else
-        actions = POMDPs.actions(p.m, b)
-        mean, var = summarize(b)
-        mean = mean[:, : , 1]
-        max_val = -Inf
-        max_act = nothing
-        for action in actions
-            if action.type == :drill
-                act_val = mean[action.coords]
-                max_act = act_val > max_val ? action : max_act
-                max_val = act_val > max_val ? act_val : max_val
-            end
-        end
-        max_act = max_val > p.m.massive_threshold ? max_act : MEAction(type=:stop)
-        return max_act
+    volumes = Float64[]
+    for s in b.particles
+        v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
+        push!(volumes, v)
     end
-end
-
-function POMDPs.action(p::ExpertPolicy, b::POMCPOW.StateBelief)
+    mean_volume = Statistics.mean(volumes)
+    volume_var = Statistics.var(volumes)
+    volume_std = sqrt(volume_var)
+    lcb = mean_volume - volume_std
     if b.stopped
-        volumes = Float64[]
-        weights = b.weights
-        for s in b.particles
-            v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
-            push!(volumes, v)
-        end
-        mean_volume = sum(weights.*volumes)
-        volume_var = sum(weights.*(volumes .- mean_volume).^2)
-        volume_std = sqrt(volume_var)
-        lcb = mean_volume - volume_std
         if lcb >= p.m.extraction_cost
             return MEAction(type=:mine)
         else
             return MEAction(type=:abandon)
         end
+    elseif lcb >= p.m.extraction_cost
+        return MEAction(type=:stop)
     else
-        actions = POMDPs.actions(p.m, b)
-        mean, var = summarize(b)
-        mean = mean[:, : , 1]
-        max_val = -Inf
-        max_act = nothing
-        for action in actions
-            if action.type == :drill
-                act_val = mean[action.coords]
-                max_act = act_val > max_val ? action : max_act
-                max_val = act_val > max_val ? act_val : max_val
-            end
-        end
-        max_act = max_val > p.m.massive_threshold ? max_act : MEAction(type=:stop)
-        return max_act
+        ore_maps = Array{Float64, 3}[s.ore_map for s  in b.particles]
+        w = 1.0/length(ore_maps)
+        mean = sum(ore_maps)./length(ore_maps)
+        var = sum([w*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])
+        return sample_ucb_drill(mean, var)
     end
 end
 
@@ -191,25 +156,15 @@ end
 RandomSolver(;rng=Random.GLOBAL_RNG) = RandomSolver(rng)
 POMDPs.solve(solver::RandomSolver, problem::Union{POMDP,MDP}) = POMCPOW.RandomPolicy(solver.rng, problem, BeliefUpdaters.PreviousObservationUpdater())
 
+struct LeafPolicy <: Policy
+    m::MineralExplorationPOMDP
+end
 
-# function POMCPOW.estimate_value(obj::ExpertPolicy, m::MineralExplorationPOMDP,
-#                         s::MEState, h::Any, ::Any)
-#     bp = obj.b0
-#     n = size(s.bore_coords)[2]
-#     for i = 1:n
-#         bore = s.bore_coords[:, i]
-#         coords = CartesianIndex(bore[1], bore[2])
-#         a = MEAction(coords=coords)
-#         o = MEObservation(s.ore_map[bore[1], bore[2], 1], false, false)
-#         bp = POMDPs.update(obj.up, bp, a, o)
-#     end
-#
-# end
-# belief_type(::MEBelief, ::MineralExplorationPOMPDP) = POWNodeBelief{statetype(P), MEBelief, obstype(P), P}
-#
-# init_node_sr_belief(::POWNodeFilter, p::POMDP, s, a, sp, o, r) = POWNodeBelief(p, s, a, sp, o, r)
-#
-# function push_weighted!(b::POWNodeBelief, ::POWNodeFilter, s, sp, r)
-#     w = obs_weight(b.model, s, b.a, sp, b.o)
-#     insert!(b.dist, (sp, convert(Float64, r)), w)
-# end
+function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.BeliefNode, ::Any)
+    γ = 1.0
+    if !s.stopped
+        γ = POMDPs.discount(pomdp)
+    end
+    r_extract = extraction_reward(pomdp, s)
+    return γ*max(r_extract, 0.0)
+end

@@ -139,21 +139,30 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
         stdout_orig = stdout
         (rd, wr) = redirect_stdout()
     end
-    fn = write_sgsim_params_to_file(p, n; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
+    errored = false
+    try
+        global ore_quals
+        fn = write_sgsim_params_to_file(p, n; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
 
-    # Run sgsim
-    run(`sgsim $fn`)
+        # Run sgsim
+        run(`sgsim $fn`)
 
-    # Load the results and return
-    vals = CSV.File("$(dir)sgsim.out",header=3) |> CSV.Tables.matrix
-    # reshape(vals, p.n..., N) # For multiple samples
+        # Load the results and return
+        vals = CSV.File("$(dir)sgsim.out",header=3) |> CSV.Tables.matrix
+        # reshape(vals, p.n..., N) # For multiple samples
 
-    poro_2D = reshape(vals, p.n)
-    ore_quals = repeat(poro_2D, outer=(1, 1, 8))
+        poro_2D = reshape(vals, p.n)
+        ore_quals = repeat(poro_2D, outer=(1, 1, 8))
+    catch
+        errored = true
+    end
     if silent
         redirect_stdout(stdout_orig)
         close(rd)
         close(wr)
+    end
+    if errored
+        error("SGSIM sampling error!")
     end
     return ore_quals
 end

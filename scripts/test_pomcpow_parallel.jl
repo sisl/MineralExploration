@@ -29,7 +29,7 @@ initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 
-up = MEBeliefUpdater(m, 1000)
+up = MEBeliefUpdater(m, 100)
 println("Initializing Belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -45,7 +45,7 @@ solver = POMCPOWSolver(tree_queries=10000,
                        k_observation=2,
                        alpha_observation=0.25,
                        criterion=POMCPOW.MaxUCB(10.0),
-                       estimate_value=POMCPOW.RolloutEstimator(ExpertPolicy(m))
+                       estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
@@ -61,7 +61,7 @@ end
 println("Starting Simulations...")
 data = POMDPSimulators.run_parallel(queue, show_progress=true)
 println("Simulations Complete!")
-JLD.save("./data/POMCPOW_test_3.jld", "results", data)
+JLD.save("./data/POMCPOW_test_4.jld", "results", data)
 
 profitable_idxs = data.massive_ore .> m.extraction_cost
 loss_idxs = data.massive_ore .<= m.extraction_cost

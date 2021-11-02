@@ -22,7 +22,7 @@ s0 = rand(ds0)
 
 up = MEBeliefUpdater(m, 100)
 println("Initializing belief...")
-# b0 = POMDPs.initialize_belief(up, ds0)
+b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 next_action = NextActionSampler() #b0, up)
 
@@ -35,7 +35,8 @@ solver = POMCPOWSolver(tree_queries=1000,
                        k_observation=2,
                        alpha_observation=0.25,
                        criterion=POMCPOW.MaxUCB(10.0),
-                       estimate_value=POMCPOW.RolloutEstimator(ExpertPolicy(m))
+                       # estimate_value=0.0
+                       estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
@@ -72,6 +73,7 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     global discounted_return
     global b_new
     global a_new
+    local fig
     a_new = a
     b_new = bp
     @show t

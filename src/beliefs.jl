@@ -58,14 +58,15 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
         mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
         mainbody_max = 1.0/(2*π*s.var)
 
-        # gp_dist = MvNormal(0.6, up.m.variogram[8]) # TODO this is an approximation of the MV Gauss from the GP
         w = 1.0
         o_n = zeros(Float64, n+1)
         for i = 1:n+1
-            o_mainbody = pdf(mainbody_dist, bore_coords[:, i]) # TODO
-            o_n[i] = (ore_obs[i] - o_mainbody)*0.6/up.m.gp_weight
+            o_mainbody = pdf(mainbody_dist, bore_coords[:, i])
+            o_mainbody /= mainbody_max
+            o_mainbody *= up.m.mainbody_weight
+            o_n[i] = (ore_obs[i] - o_mainbody)*0.3/up.m.gp_weight
         end
-        mu = zeros(Float64, n+1) .+ 0.6
+        mu = zeros(Float64, n+1) .+ 0.3
         gp_dist = MvNormal(mu, K)
         w = pdf(gp_dist, o_n)
         push!(po_s, w)
@@ -75,7 +76,6 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
 end
 
 function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAction, o::MEObservation)
-
     sampled_states = sample(up.rng, b.particles, StatsBase.Weights(wp), up.n, replace=true)
     sampled_vars = [s.var for s in sampled_states]
     mainbody_vars = Float64[]
@@ -122,13 +122,13 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
             # n_ore_qual = ore_qual - mainbody_map[ore_coords[1, i], ore_coords[2, i]]
             prior_ore = mainbody_map[ore_coords[1, i], ore_coords[2, i]]
             # n_ore_qual = (ore_qual - prior_ore./mainbody_max.*up.m.mainbody_weight).*(0.6/up.m.gp_weight) - 0.6
-            n_ore_qual = (ore_qual - prior_ore).*(0.6/up.m.gp_weight)
+            n_ore_qual = (ore_qual - prior_ore).*(0.3/up.m.gp_weight)
             push!(n_ore_quals, n_ore_qual)
         end
         gslib_dist.data.ore_quals = n_ore_quals
         gp_ore_map = Base.rand(up.rng, gslib_dist)
         mean_gp = mean(gp_ore_map)
-        gp_ore_map ./= 0.6
+        gp_ore_map ./= 0.3
         gp_ore_map .*= up.m.gp_weight
         clamp!(gp_ore_map, 0.0, up.m.massive_threshold)
         mainbody_map_3d = repeat(mainbody_map, outer=(1, 1, 8))

@@ -101,11 +101,12 @@ end
 
 function Base.rand(d::MEInitStateDist)
     gp_ore_map = Base.rand(d.rng, d.gp_distribution)
-    mean_gp = mean(gp_ore_map)
-    gp_ore_map ./= mean_gp
+    # mean_gp = mean(gp_ore_map)
+    # println(mean_gp)
+    gp_ore_map ./= 0.3 # TODO
     gp_ore_map .*= d.gp_weight
 
-    clamp!(gp_ore_map, 0.0, d.massive_thresh)
+    # clamp!(gp_ore_map, 0.0, d.massive_thresh)
 
     x_dim = d.gp_distribution.grid_dims[1]
     y_dim = d.gp_distribution.grid_dims[2]
@@ -124,7 +125,7 @@ function Base.rand(d::MEInitStateDist)
     lode_map = repeat(lode_map, outer=(1, 1, 8))
 
     ore_map = lode_map + gp_ore_map
-    clamp!(ore_map, 0.0, 1.0)
+    # clamp!(ore_map, 0.0, 1.0)
     MEState(ore_map, mainbody_var,
             d.gp_distribution.data.coordinates, false, false)
 end
@@ -209,19 +210,6 @@ function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
     return MEAction[]
 end
 
-# function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
-#                     a::MEAction, sp::MEState, o::MEObservation)
-#     w = 0.0
-#     if a.type != :drill
-#         w = o.ore_quality == nothing ? 1.0 : 0.0
-#     else
-#         ore = s.ore_map[:,:,1][a.coords]
-#         dist = Normal(ore, m.obs_noise_std)
-#         w = pdf(dist, o.ore_quality)
-#     end
-#     return w
-# end
-
 function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
                     a::MEAction, sp::MEState, o::MEObservation)
     w = 0.0
@@ -234,22 +222,20 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
 
         mainbody_max = 1.0/(2*π*s.var)
         o_gp = (o.ore_quality - o_mainbody/mainbody_max*m.mainbody_weight)*(0.6/m.gp_weight)
-        # o_gp = o.ore_quality - o_mainbody
-        # println(s.bore_coords)
-        if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
-            mu = 0.6
+        # if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
+            mu = 0.3
             sigma = 1.0
-        else
-            gslib_dist = GSLIBDistribution(m)
-            prior_ore = Float64[]
-            for i =1:size(s.bore_coords[2])
-                push!(prior_ore, ore_map[s.bore_coords[1, i], s.bore_coords[2, i], 1])
-            end
-            prior_obs = RockObservations(prior_ore, s.bore_coords)
-            μ, σ² = kriging(gslib_dist, prior_obs)
-            mu = μ[a.coords]
-            sigma = sqrt(σ²[a.coords])
-        end
+        # else
+        #     gslib_dist = GSLIBDistribution(m)
+        #     prior_ore = Float64[]
+        #     for i =1:size(s.bore_coords[2])
+        #         push!(prior_ore, ore_map[s.bore_coords[1, i], s.bore_coords[2, i], 1])
+        #     end
+        #     prior_obs = RockObservations(prior_ore, s.bore_coords)
+        #     μ, σ² = kriging(gslib_dist, prior_obs)
+        #     mu = μ[a.coords]
+        #     sigma = sqrt(σ²[a.coords])
+        # end
         point_dist = Normal(mu, sigma)
         w = pdf(point_dist, o_gp)
     end
