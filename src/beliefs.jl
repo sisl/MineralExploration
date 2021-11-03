@@ -259,18 +259,6 @@ function POMDPs.actions(m::MineralExplorationPOMDP, o::MEObservation)
         return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
     else
         action_set = Set(POMDPs.actions(m))
-        # n_initial = length(m.initial_data)
-        # if s.bore_coords != nothing
-        #     n_obs = size(s.bore_coords)[2] - n_initial
-        #     for i=1:n_obs
-        #         coord = s.bore_coords[:, i + n_initial]
-        #         x = Int64(coord[1])
-        #         y = Int64(coord[2])
-        #         keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
-        #         keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
-        #         setdiff!(action_set, keepout_acts)
-        #     end
-        # end
         delete!(action_set, MEAction(type=:mine))
         delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)

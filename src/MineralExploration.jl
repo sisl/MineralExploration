@@ -40,6 +40,7 @@ include("beliefs.jl")
 export
         NextActionSampler,
         ExpertPolicy,
+        RandomSolver,
         leaf_estimation
 include("solver.jl")
 

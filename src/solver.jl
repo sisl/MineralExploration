@@ -156,10 +156,6 @@ end
 RandomSolver(;rng=Random.GLOBAL_RNG) = RandomSolver(rng)
 POMDPs.solve(solver::RandomSolver, problem::Union{POMDP,MDP}) = POMCPOW.RandomPolicy(solver.rng, problem, BeliefUpdaters.PreviousObservationUpdater())
 
-struct LeafPolicy <: Policy
-    m::MineralExplorationPOMDP
-end
-
 function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.BeliefNode, ::Any)
     γ = 1.0
     if !s.stopped

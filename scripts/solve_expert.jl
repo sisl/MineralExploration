@@ -25,7 +25,6 @@ up = MEBeliefUpdater(m, 100)
 b0 = POMDPs.initialize_belief(up, ds0)
 
 policy = ExpertPolicy(m)
-policy = RandomPolicy(m)
 # @profview POMDPs.action(policy, b0)
 # @profview POMDPs.action(policy, b0)
 

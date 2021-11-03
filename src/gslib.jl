@@ -148,7 +148,7 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
         run(`sgsim $fn`)
 
         # Load the results and return
-        vals = CSV.File("$(dir)sgsim.out",header=3) |> CSV.Tables.matrix
+        vals = CSV.File("$(dir)sgsim.out",header=3, types=Float64) |> CSV.Tables.matrix
         # reshape(vals, p.n..., N) # For multiple samples
 
         poro_2D = reshape(vals, p.n)

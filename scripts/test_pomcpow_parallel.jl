@@ -1,5 +1,7 @@
 using Distributed
 
+#NOTE: DOES NOT RUN WITH GSLIB :(
+
 N_PROCS = 4
 println("Building $N_PROCS Workers...")
 addprocs(N_PROCS)
