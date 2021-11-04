@@ -102,7 +102,10 @@ end
 function Base.rand(d::MEInitStateDist)
     gp_ore_map = Base.rand(d.rng, d.gp_distribution)
     # mean_gp = mean(gp_ore_map)
+    # var_gp = var(gp_ore_map[:,:,1])
     # println(mean_gp)
+    # println(var_gp)
+
     gp_ore_map ./= 0.3 # TODO
     gp_ore_map .*= d.gp_weight
 
@@ -126,6 +129,7 @@ function Base.rand(d::MEInitStateDist)
 
     ore_map = lode_map + gp_ore_map
     # clamp!(ore_map, 0.0, 1.0)
+    # ore_map = gp_ore_map
     MEState(ore_map, mainbody_var,
             d.gp_distribution.data.coordinates, false, false)
 end
@@ -224,7 +228,9 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
         o_gp = (o.ore_quality - o_mainbody/mainbody_max*m.mainbody_weight)*(0.6/m.gp_weight)
         # if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
             mu = 0.3
-            sigma = 1.0
+            # sigma = 1.0
+            marginal_var = 0.006681951232101568
+            sigma = sqrt(marginal_var)
         # else
         #     gslib_dist = GSLIBDistribution(m)
         #     prior_ore = Float64[]

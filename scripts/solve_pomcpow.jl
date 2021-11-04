@@ -5,8 +5,9 @@ using POMDPSimulators
 using POMCPOW
 using Plots
 using ParticleFilters
+using Statistics
 
-# using ProfileView
+using ProfileView
 using D3Trees
 
 using MineralExploration
@@ -20,7 +21,7 @@ initialize_data!(m, N_INITIAL)
 ds0 = POMDPs.initialstate_distribution(m)
 # s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 100)
+up = MEBeliefUpdater(m, 1000)
 println("Initializing belief...")
 # b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -34,7 +35,7 @@ solver = POMCPOWSolver(tree_queries=1000,
                        alpha_action=0.25,
                        k_observation=2,
                        alpha_observation=0.1,
-                       criterion=POMCPOW.MaxUCB(50.0),
+                       criterion=POMCPOW.MaxUCB(100.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        # estimate_value=0.0
@@ -49,7 +50,7 @@ planner = POMDPs.solve(solver, m)
 # MineralExploration.std(volumes)
 
 # println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, B[2], tree_in_info=true)
+# a, info = POMCPOW.action_info(planner, B[8], tree_in_info=true)
 # tree = info[:tree]
 # inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
@@ -61,12 +62,17 @@ display(fig)
 s_massive = s0.ore_map[:,:,1] .>= 0.7
 r_massive = sum(s_massive)
 println("Massive ore: $r_massive")
+println("MB Variance: $(s0.var)")
 
 fig = heatmap(s_massive, title="Massive Ore Deposits: $r_massive", fill=true, clims=(0.0, 1.0))
 # savefig(fig, "./data/example/massive.png")
 display(fig)
 
 fig = plot(b0)
+display(fig)
+
+vars = [p.var for p in b0.particles]
+fig = histogram(vars, bins=10 )
 display(fig)
 
 b_new = nothing
@@ -101,6 +107,14 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     str = "./data/example/belief_$t.png"
     # savefig(fig, str)
     display(fig)
+
+    vars = [p.var for p in bp.particles]
+    mean_vars = mean(vars)
+    std_vars = std(vars)
+    @show mean_vars
+    @show std_vars
+    # fig = histogram(vars, bins=10)
+    # display(fig)
     discounted_return += POMDPs.discount(m)^(t - 1)*r
 end
 
