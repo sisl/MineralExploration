@@ -79,7 +79,7 @@ mean_drills = mean(D)
 mined_drills = sum(D.*mined)/sum(mined)
 abandoned_drills = sum(D.*abandoned)/sum(abandoned)
 
-println("Available Profit: $available_profit, Mined Profit: $mined_profit")
+println("Available Profit: $available_profit, Mined Profit: $mined_profit, P: $(mined_profit/available_profit)")
 println("Profitable: $(sum(profitable)), Mined: $profitable_mined, Abandoned: $profitable_abandoned")
 println("Lossy: $(sum(lossy)), Mined: $lossy_mined, Abandoned: $lossy_abandoned")
 println("Mean Bores: $mean_drills, Mined Bores: $mined_drills, Abandon Bores: $abandoned_drills")

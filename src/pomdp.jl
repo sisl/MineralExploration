@@ -106,7 +106,7 @@ function Base.rand(d::MEInitStateDist)
     gp_ore_map ./= 0.3 # TODO
     gp_ore_map .*= d.gp_weight
 
-    # clamp!(gp_ore_map, 0.0, d.massive_thresh)
+    clamp!(gp_ore_map, 0.0, d.massive_thresh)
 
     x_dim = d.gp_distribution.grid_dims[1]
     y_dim = d.gp_distribution.grid_dims[2]

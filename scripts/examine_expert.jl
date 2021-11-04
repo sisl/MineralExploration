@@ -23,13 +23,15 @@ end
 
 function belief_scores(m, v)
     # scores = exp.((mean[:,:,1] + ucb.*sqrt.(var[:,:,1]))*t)
-    # scores = mean[:,:,1] + ucb.*sqrt.(var[:,:,1])
+    # scores = m[:,:,1] + 5.0.*sqrt.(v[:,:,1])
+    # scores = 3.0.*sqrt.(v[:,:,1])
+
     norm_mean = m[:,:,1]./(maximum(m[:,:,1]) - minimum(m[:,:,1]))
     norm_mean .-= minimum(norm_mean)
-    s = v[:,:,1]
+    s = sqrt.(v[:,:,1])
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
-    scores = norm_mean .* norm_std
+    scores = norm_mean .+ 3.0*norm_std
     # scores = norm_mean
     # scores = norm_std
     scores ./= sum(scores)
@@ -72,8 +74,8 @@ println("Initializing belief...")
 println("Belief Initialized!")
 
 b = b0
-b = POMDPs.update(up, b0, MEAction(coords=CartesianIndex(20, 30)),
-                MEObservation(s0.ore_map[20, 30, 1], false, false))
+# b = POMDPs.update(up, b0, MEAction(coords=CartesianIndex(20, 30)),
+#                 MEObservation(s0.ore_map[20, 30, 1], false, false))
 # b = POMDPs.update(up, b, MEAction(coords=CartesianIndex(30, 30)),
 #                 MEObservation(s0.ore_map[30, 30, 1], false, false))
 

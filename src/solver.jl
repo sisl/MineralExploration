@@ -32,6 +32,7 @@ function belief_scores(m, v)
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
     scores = norm_mean .* norm_std
+    scores .+= 1.0/(size(m)[1] * size(m)[2])
     scores ./= sum(scores)
     return scores
 end
@@ -131,7 +132,7 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     mean_volume = Statistics.mean(volumes)
     volume_var = Statistics.var(volumes)
     volume_std = sqrt(volume_var)
-    lcb = mean_volume - volume_std
+    lcb = mean_volume - 2.0*volume_std
     if b.stopped
         if lcb >= p.m.extraction_cost
             return MEAction(type=:mine)
@@ -157,10 +158,20 @@ RandomSolver(;rng=Random.GLOBAL_RNG) = RandomSolver(rng)
 POMDPs.solve(solver::RandomSolver, problem::Union{POMDP,MDP}) = POMCPOW.RandomPolicy(solver.rng, problem, BeliefUpdaters.PreviousObservationUpdater())
 
 function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.BeliefNode, ::Any)
-    γ = 1.0
-    if !s.stopped
-        γ = POMDPs.discount(pomdp)
+    if s.decided
+        return 0.0
+    else
+        γ = 1.0
+        if !s.stopped
+            γ = POMDPs.discount(pomdp)^2
+        end
+        r_extract = extraction_reward(pomdp, s)
+            if r_extract >= 0.0
+                return γ*r_extract*0.8
+            else
+                return γ*r_extract*0.2
+            end
+        # return γ*max(r_extract, 0.0)
+        # return γ*r_extract
     end
-    r_extract = extraction_reward(pomdp, s)
-    return γ*max(r_extract, 0.0)
 end
