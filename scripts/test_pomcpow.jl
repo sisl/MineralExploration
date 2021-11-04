@@ -17,48 +17,28 @@ initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 
-up = MEBeliefUpdater(m, 100)
+up = MEBeliefUpdater(m, 1000)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 next_action = NextActionSampler()
 
-solver = POMCPOWSolver(tree_queries=5000,
+solver = POMCPOWSolver(tree_queries=10000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
                        k_action=3,
                        alpha_action=0.25,
                        k_observation=2,
-                       alpha_observation=0.1,
-                       criterion=POMCPOW.MaxUCB(50.0),
+                       alpha_observation=0.15,
+                       criterion=POMCPOW.MaxUCB(100.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        # estimate_value=0.0
                        estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
-
-# N = 100
-# rs = RolloutSimulator(max_steps=25)
-# V = Float64[]
-# ores = Float64[]
-# println("Starting simulations")
-# for i in 1:N
-#     if (i%1) == 0
-#         println("Trial $i")
-#     end
-#     s0 = rand(ds0)
-#     s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
-#     r_massive = sum(s_massive)
-#     v = simulate(rs, m, planner, up, b0, s0)
-#     push!(V, v)
-#     push!(ores, r_massive)
-# end
-# mean_v = mean(V)
-# se_v = std(V)/sqrt(N)
-# println("Discounted Return: $mean_v ± $se_v")
 
 N = 100
 # rs = RolloutSimulator(max_steps=MAX_BORES+5)
@@ -75,6 +55,7 @@ for i in 1:N
     s0 = rand(ds0)
     s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
     r_massive = sum(s_massive)
+    println("Massive Ore: $r_massive")
     h = simulate(hr, m, planner, up, b0, s0)
     v = 0.0
     d = 0
@@ -86,9 +67,9 @@ for i in 1:N
     end
     push!(D, d)
     push!(A, h[end][:a].type)
-    println("Massive Ore: $r_massive")
-    println("Decision: $(h[end][:a].type)")
+
     println("Steps: $(length(h))")
+    println("Decision: $(h[end][:a].type)")
     println("======================")
     push!(ores, r_massive)
     push!(V, v)

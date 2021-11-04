@@ -41,6 +41,7 @@ export
         NextActionSampler,
         ExpertPolicy,
         RandomSolver,
+        GridPolicy,
         leaf_estimation
 include("solver.jl")
 

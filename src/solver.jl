@@ -1,12 +1,5 @@
 @with_kw struct NextActionSampler
     ucb::Float64 = 1.0
-    # rand_act::POMCPOW.RandomActionGenerator
-    # b0::MEBelief
-    # up::MEBeliefUpdater
-    # function NextActionSampler(b0::MEBelief, up::MEBeliefUpdater)
-    #     rand_act = POMCPOW.RandomActionGenerator(Random.GLOBAL_RNG)
-    #     new(rand_act, b0, up)
-    # end
 end
 
 function sample_ucb_drill(mean, var, idxs)
@@ -128,7 +121,7 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     mean_volume = Statistics.mean(volumes)
     volume_var = Statistics.var(volumes)
     volume_std = sqrt(volume_var)
-    lcb = mean_volume - 2.0*volume_std
+    lcb = mean_volume - volume_std
     if b.stopped
         if lcb >= p.m.extraction_cost
             return MEAction(type=:mine)
@@ -159,9 +152,9 @@ function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.
     if s.decided
         return 0.0
     else
-        γ = 1.0
+        γ = POMDPs.discount(pomdp)
         if !s.stopped
-            γ = POMDPs.discount(pomdp)^2
+            γ = γ^2
         end
         r_extract = extraction_reward(pomdp, s)
             if r_extract >= 0.0
@@ -171,5 +164,59 @@ function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.
             end
         # return γ*max(r_extract, 0.0)
         # return γ*r_extract
+    end
+end
+
+struct GridPolicy <: Policy
+    m::MineralExplorationPOMDP
+    n::Int64 # Number of grid points per dimension (n x n)
+    grid_size::Int64 # Size of grid area, centered on map center
+    grid_coords::Vector{CartesianIndex{2}}
+end
+
+function GridPolicy(m::MineralExplorationPOMDP, n::Int, grid_size::Int)
+    grid_start_i = (m.grid_dim[1] - grid_size)/2
+    grid_start_j = (m.grid_dim[2] - grid_size)/2
+    grid_end_i = grid_start_i + grid_size
+    grid_end_j = grid_start_j + grid_size
+    grid_i = LinRange(grid_start_i, grid_end_i, n)
+    grid_j = LinRange(grid_start_j, grid_end_j, n)
+
+    coords = CartesianIndex{2}[]
+    for i=1:n
+        for j=1:n
+            coord = CartesianIndex(Int(floor(grid_i[i])), Int(floor(grid_j[j])))
+            push!(coords, coord)
+        end
+    end
+    return GridPolicy(m, n, grid_size, coords)
+end
+
+function POMDPs.action(p::GridPolicy, b::MEBelief)
+    if b.bore_coords == nothing
+        n_bores = 0
+    else
+        n_bores = size(b.bore_coords)[2]
+    end
+    if b.stopped
+        volumes = Float64[]
+        for s in b.particles
+            v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
+            push!(volumes, v)
+        end
+        mean_volume = Statistics.mean(volumes)
+        volume_var = Statistics.var(volumes)
+        volume_std = sqrt(volume_var)
+        lcb = mean_volume - volume_std
+        if lcb >= p.m.extraction_cost
+            return MEAction(type=:mine)
+        else
+            return MEAction(type=:abandon)
+        end
+    elseif n_bores >= p.n^2
+        return MEAction(type=:stop)
+    else
+        coords = p.grid_coords[n_bores + 1]
+        return MEAction(coords=coords)
     end
 end
