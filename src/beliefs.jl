@@ -46,6 +46,7 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
     push!(ore_obs, o.ore_quality)
     K = zeros(Float64, n+1, n+1)
     marginal_var = 0.006681951232101568
+    # marginal_var = 1.0
     for i = 1:n+1
         for j = 1:n+1
             K[i, j] = clamp(marginal_var - variogram(bore_coords[:, i], bore_coords[:, j], up.m.variogram[6], marginal_var), 0.0, Inf)

@@ -21,7 +21,7 @@ initialize_data!(m, N_INITIAL)
 ds0 = POMDPs.initialstate_distribution(m)
 # s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 1000)
+up = MEBeliefUpdater(m, 100)
 println("Initializing belief...")
 # b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -72,8 +72,11 @@ fig = plot(b0)
 display(fig)
 
 vars = [p.var for p in b0.particles]
-fig = histogram(vars, bins=10 )
-display(fig)
+mean_vars = mean(vars)
+std_vars = std(vars)
+println("Vars: $mean_vars ± $std_vars")
+# fig = histogram(vars, bins=10 )
+# display(fig)
 
 b_new = nothing
 a_new = nothing

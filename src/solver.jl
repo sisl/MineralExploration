@@ -9,17 +9,11 @@
     # end
 end
 
-function sample_ucb_drill(mean, var)
+function sample_ucb_drill(mean, var, idxs)
     scores = belief_scores(mean, var)
     weights = Float64[]
-    idxs = CartesianIndex{2}[]
-    m, n, _ = size(mean)
-    for i =1:m
-        for j = 1:n
-            idx = CartesianIndex(i, j)
-            push!(idxs, idx)
-            push!(weights, scores[i, j])
-        end
+    for idx in idxs
+        push!(weights, scores[idx])
     end
     coords = sample(idxs, StatsBase.Weights(weights))
     return MEAction(coords=coords)
@@ -52,7 +46,8 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
             return MEAction(type=:stop)
         else
             mean, var = summarize(b)
-            return sample_ucb_drill(mean, var)
+            coords = [a.coords for a in action_set if a.type == :drill]
+            return sample_ucb_drill(mean, var, coords)
         end
     end
 end
@@ -84,7 +79,8 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
             weights ./= sum(weights)
             mean = sum(weights.*ore_maps)
             var = sum([weights[i]*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])
-            return sample_ucb_drill(mean, var)
+            coords = [a.coords for a in action_set if a.type == :drill]
+            return sample_ucb_drill(mean, var, coords)
         end
     end
 end
@@ -146,7 +142,9 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
         w = 1.0/length(ore_maps)
         mean = sum(ore_maps)./length(ore_maps)
         var = sum([w*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])
-        return sample_ucb_drill(mean, var)
+        action_set = POMDPs.actions(p.m, b)
+        coords = [a.coords for a in action_set if a.type == :drill]
+        return sample_ucb_drill(mean, var, coords)
     end
 end
 
