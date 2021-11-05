@@ -10,9 +10,9 @@ using Statistics
 using MineralExploration
 
 N_INITIAL = 0
-MAX_BORES = 15
+MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=4)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
@@ -24,7 +24,7 @@ println("Belief Initialized!")
 
 next_action = NextActionSampler()
 
-solver = POMCPOWSolver(tree_queries=10000,
+solver = POMCPOWSolver(tree_queries=1000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
@@ -32,7 +32,7 @@ solver = POMCPOWSolver(tree_queries=10000,
                        alpha_action=0.25,
                        k_observation=2,
                        alpha_observation=0.15,
-                       criterion=POMCPOW.MaxUCB(100.0),
+                       criterion=POMCPOW.MaxUCB(10.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        # estimate_value=0.0

@@ -12,12 +12,12 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=4)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 
-up = MEBeliefUpdater(m, 100)
+up = MEBeliefUpdater(m, 1000)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -39,6 +39,7 @@ for i in 1:N
     s0 = rand(ds0)
     s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
     r_massive = sum(s_massive)
+    println("Massive Ore: $r_massive")
     h = simulate(hr, m, policy, up, b0, s0)
     v = 0.0
     d = 0
@@ -50,6 +51,10 @@ for i in 1:N
     end
     push!(D, d)
     push!(A, h[end][:a].type)
+
+    println("Steps: $(length(h))")
+    println("Decision: $(h[end][:a].type)")
+    println("======================")
     push!(ores, r_massive)
     push!(V, v)
 end

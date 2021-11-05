@@ -27,7 +27,7 @@ println("Initializing belief...")
 println("Belief Initialized!")
 
 next_action = NextActionSampler() #b0, up)
-solver = POMCPOWSolver(tree_queries=10000,
+solver = POMCPOWSolver(tree_queries=100000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,

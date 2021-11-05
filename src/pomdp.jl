@@ -7,7 +7,7 @@
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
-    drill_cost::Float64 = 0.0
+    drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 150.0
     extraction_lcb::Float64 = 0.9
