@@ -7,12 +7,14 @@
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
-    drill_cost::Float64 = 0.1
+    drill_cost::Float64 = 0.0
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 150.0
     extraction_lcb::Float64 = 0.9
-    variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
-    nugget::Tuple = (1, 0)
+    # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
+    variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
+    # nugget::Tuple = (1, 0)
+    gp_mean::Float64 = 0.3
     gp_weight::Float64 = 0.35
     mainbody_weight::Float64 = 0.45
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
@@ -22,9 +24,15 @@
     rng::AbstractRNG = Random.GLOBAL_RNG
 end
 
-function GSLIBDistribution(p::MineralExplorationPOMDP)
-    return GSLIBDistribution(grid_dims=p.grid_dim, n=p.grid_dim,
-            data=deepcopy(p.initial_data), variogram=p.variogram, nugget=p.nugget)
+function GeoStatsDistribution(p::MineralExplorationPOMDP)
+    variogram = SphericalVariogram(sill=p.variogram[1], range=p.variogram[2],
+                                    nugget=p.variogram[3])
+    domain = CartesianGrid{Int64}(p.grid_dim[1], p.grid_dim[2])
+    return GeoStatsDistribution(grid_dims=p.grid_dim,
+                                data=deepcopy(p.initial_data),
+                                domain=domain,
+                                mean=p.gp_mean,
+                                variogram=variogram)
 end
 
 """
@@ -45,8 +53,8 @@ end
 
 function sample_initial(p::MineralExplorationPOMDP, n::Integer)
     coords, coords_array = sample_coords(p.grid_dim, n)
-    dist = GSLIBDistribution(p)
-    state = rand(dist, silent=true)
+    dist = GeoStatsDistribution(p)
+    state = rand(dist)
     ore_quality = state[coords]
     return RockObservations(ore_quality, coords_array)
 end
@@ -58,7 +66,7 @@ function sample_initial(p::MineralExplorationPOMDP, coords::Array)
         coords_array[1, i] = sample[1]
         coords_array[2, i] = sample[2]
     end
-    dist = GSLIBDistribution(p)
+    dist = GeoStatsDistribution(p)
     state = rand(dist)
     ore_quality = state[coords]
     return RockObservations(ore_quality, coords_array)
@@ -82,7 +90,7 @@ POMDPs.discount(::MineralExplorationPOMDP) = 0.99
 POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.decided
 
 struct MEInitStateDist
-    gp_distribution::GSLIBDistribution
+    gp_distribution::GeoStatsDistribution
     gp_weight::Float64
     mainbody_weight::Float64
     mainbody_loc::Vector{Float64}
@@ -93,7 +101,7 @@ struct MEInitStateDist
 end
 
 function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP)
-    reservoir_dist = GSLIBDistribution(m)
+    reservoir_dist = GeoStatsDistribution(m)
     MEInitStateDist(reservoir_dist, m.gp_weight, m.mainbody_weight,
                     m.mainbody_loc, m.mainbody_var_max, m.mainbody_var_min,
                     m.massive_threshold, m.rng)
@@ -101,10 +109,6 @@ end
 
 function Base.rand(d::MEInitStateDist)
     gp_ore_map = Base.rand(d.rng, d.gp_distribution)
-    # mean_gp = mean(gp_ore_map)
-    # var_gp = var(gp_ore_map[:,:,1])
-    # println(mean_gp)
-    # println(var_gp)
 
     gp_ore_map ./= 0.3 # TODO
     gp_ore_map .*= d.gp_weight
@@ -113,9 +117,9 @@ function Base.rand(d::MEInitStateDist)
 
     x_dim = d.gp_distribution.grid_dims[1]
     y_dim = d.gp_distribution.grid_dims[2]
-    lode_map = zeros(x_dim, y_dim)
+    lode_map = zeros(Float64, x_dim, y_dim)
     mainbody_var = rand(d.rng)*(d.mainbody_var_max - d.mainbody_var_min) + d.mainbody_var_min
-    cov = [mainbody_var 0.0; 0.0 mainbody_var]
+    cov = Distributions.PDiagMat([mainbody_var, mainbody_var])
     mvnorm = MvNormal(d.mainbody_loc, cov)
     for i = 1:x_dim
         for j = 1:y_dim
@@ -231,17 +235,6 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
             # sigma = 1.0
             marginal_var = 0.006681951232101568
             sigma = sqrt(marginal_var)
-        # else
-        #     gslib_dist = GSLIBDistribution(m)
-        #     prior_ore = Float64[]
-        #     for i =1:size(s.bore_coords[2])
-        #         push!(prior_ore, ore_map[s.bore_coords[1, i], s.bore_coords[2, i], 1])
-        #     end
-        #     prior_obs = RockObservations(prior_ore, s.bore_coords)
-        #     μ, σ² = kriging(gslib_dist, prior_obs)
-        #     mu = μ[a.coords]
-        #     sigma = sqrt(σ²[a.coords])
-        # end
         point_dist = Normal(mu, sigma)
         w = pdf(point_dist, o_gp)
     end

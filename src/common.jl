@@ -33,3 +33,10 @@ end
 #     acts::Vector{MEAction}
 #     obs::Vector{MEObservation}
 # end
+
+# struct MEBeliefUpdater <: POMDPs.Updater
+#     m::MineralExplorationPOMDP
+#     n::Int64
+#     vars::Vector{Float64}
+#     rng::AbstractRNG
+# end

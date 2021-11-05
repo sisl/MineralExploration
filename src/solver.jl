@@ -141,7 +141,7 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     end
 end
 
-mutable struct RandomSolver <: Solver
+mutable struct RandomSolver <: POMDPs.Solver
     rng::AbstractRNG
 end
 
@@ -149,21 +149,26 @@ RandomSolver(;rng=Random.GLOBAL_RNG) = RandomSolver(rng)
 POMDPs.solve(solver::RandomSolver, problem::Union{POMDP,MDP}) = POMCPOW.RandomPolicy(solver.rng, problem, BeliefUpdaters.PreviousObservationUpdater())
 
 function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.BeliefNode, ::Any)
+    if s.stopped
+        γ = POMDPs.discount(pomdp)
+    else
+        if s.bore_coords == nothing
+            bores = 0
+        else
+            bores = size(s.bore_coords)[2]
+        end
+        t = pomdp.max_bores - bores + 1
+        γ = POMDPs.discount(pomdp)^t
+    end
     if s.decided
         return 0.0
     else
-        γ = POMDPs.discount(pomdp)
-        if !s.stopped
-            γ = γ^2
-        end
         r_extract = extraction_reward(pomdp, s)
-            if r_extract >= 0.0
-                return γ*r_extract*0.8
-            else
-                return γ*r_extract*0.2
-            end
-        # return γ*max(r_extract, 0.0)
-        # return γ*r_extract
+        if r_extract >= 0.0
+            return γ*r_extract*0.8
+        else
+            return γ*r_extract*0.2
+        end
     end
 end
 

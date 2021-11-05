@@ -6,7 +6,8 @@ using POMCPOW
 using BeliefUpdaters
 using Random
 using Plots
-using CSV
+using GeoStats
+using DataFrames
 using Parameters
 using StatsBase
 using Statistics
@@ -21,9 +22,9 @@ export
 include("common.jl")
 
 export
-        GSLIBDistribution,
+        GeoStatsDistribution,
         kriging
-include("gslib.jl")
+include("geostats.jl")
 
 
 export
