@@ -2,7 +2,7 @@
 struct MEBelief
     bore_coords::Union{Nothing, Matrix{Int64}}
     stopped::Bool
-    particles::Vector{MEState}
+    particles::Vector{Float64}
     acts::Vector{MEAction}
     obs::Vector{MEObservation}
 end
@@ -102,47 +102,6 @@ function calc_var(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservatio
     end
     return map_var/w_total
 end
-
-# function reweight(up::MEBeliefUpdater, b::MEBelief, particles::Vector{MEState},
-#                 a::MEAction, o::MEObservation)
-#     po_s = Float64[]
-#     bore_coords = particles[1].bore_coords
-#     n = size(bore_coords)[2]
-#     bore_coords = hcat(bore_coords, [a.coords[1], a.coords[2]])
-#     ore_obs = [o.ore_quality for o in b.obs]
-#     push!(ore_obs, o.ore_quality)
-#     K = zeros(Float64, n+1, n+1)
-#     marginal_var = 0.006681951232101568
-#     # marginal_var = 1.0
-#     for i = 1:n+1
-#         for j = 1:n+1
-#             K[i, j] = clamp(marginal_var - variogram(bore_coords[:, i], bore_coords[:, j], up.m.variogram[6], marginal_var), 0.0, Inf)
-#             if i == j
-#                 K[i, j] += 1e-3
-#             end
-#         end
-#     end
-#     for s in particles
-#         mainbody_cov = [s.var 0.0; 0.0 s.var]
-#         mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
-#         mainbody_max = 1.0/(2*π*s.var)
-#
-#         w = 1.0
-#         o_n = zeros(Float64, n+1)
-#         for i = 1:n+1
-#             o_mainbody = pdf(mainbody_dist, bore_coords[:, i])
-#             o_mainbody /= mainbody_max
-#             o_mainbody *= up.m.mainbody_weight
-#             o_n[i] = (ore_obs[i] - o_mainbody)*0.3/up.m.gp_weight
-#         end
-#         mu = zeros(Float64, n+1) .+ 0.3
-#         gp_dist = MvNormal(mu, K)
-#         w = pdf(gp_dist, o_n)
-#         push!(po_s, w)
-#     end
-#     po_s ./= sum(po_s) + 1e-6
-#     return po_s
-# end
 
 function resample(up::MEBeliefUpdater, b::MEBelief, mb_var::Float64, a::MEAction, o::MEObservation)
     x_dim = up.m.grid_dim[1]
