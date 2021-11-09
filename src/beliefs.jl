@@ -27,7 +27,7 @@ function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     particles = Tuple{Float64, Array{Float64}}[]
     for i=1:up.n
         lode_map = zeros(Float64, x_dim, y_dim)
-        mainbody_var = rand(up.rng)*(up.m.mainbody_var_max - up.m.mainbody_var_min) + up.m.mainbody_var_min
+        mainbody_var = rand(up.rng)*(d.mainbody_var_max - d.mainbody_var_min) + d.mainbody_var_min
         cov = Distributions.PDiagMat([mainbody_var, mainbody_var])
         mvnorm = MvNormal(d.mainbody_loc, cov)
         for i = 1:x_dim
@@ -38,7 +38,7 @@ function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
         max_lode = maximum(lode_map)
         lode_map ./= max_lode
         lode_map .*= d.mainbody_weight
-        lode_map = repeat(lode_map, outer=(1, 1, 1))
+        lode_map = repeat(lode_map, outer=(1, 1, up.m.grid_dim[3]))
 
         push!(particles, (mainbody_var, lode_map))
     end
@@ -86,7 +86,8 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservatio
         w = pdf(gp_dist, o_n)
         push!(ws, w)
     end
-    ws ./= sum(ws) + 1e-6
+    ws .+= 1e-6
+    ws ./= sum(ws)
     return ws
 end
 

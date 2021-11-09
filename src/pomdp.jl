@@ -6,9 +6,9 @@
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
-    drill_cost::Float64 = 0.1
+    drill_cost::Float64 = 0.0
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 150.0
+    extraction_cost::Float64 = 100.0
     extraction_lcb::Float64 = 0.9
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
@@ -237,15 +237,13 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
     else
         mainbody_cov = [s.var 0.0; 0.0 s.var]
         mainbody_dist = MvNormal(m.mainbody_loc, mainbody_cov)
-        o_mainbody = pdf(mainbody_dist, [float(a.coords[1]), float(a.coords[2])]) # TODO
+        o_mainbody = s.mainbody_map[a.coords[1], a.coords[2], 1]
 
-        mainbody_max = 1.0/(2*π*s.var)
-        o_gp = (o.ore_quality - o_mainbody/mainbody_max*m.mainbody_weight)*(0.6/m.gp_weight)
+        # mainbody_max = 1.0/(2*π*s.var)
+        o_gp = (o.ore_quality - o_mainbody)/m.gp_weight
         # if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
-            mu = 0.3
-            # sigma = 1.0
-            marginal_var = 0.006681951232101568
-            sigma = sqrt(marginal_var)
+        mu = m.gp_mean
+        sigma = sqrt(m.variogram[1])
         point_dist = Normal(mu, sigma)
         w = pdf(point_dist, o_gp)
     end

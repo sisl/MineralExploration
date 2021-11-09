@@ -15,31 +15,31 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=4)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 1000)
+up = MEBeliefUpdater(m, 10000)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 next_action = NextActionSampler() #b0, up)
-solver = POMCPOWSolver(tree_queries=1000,
+solver = POMCPOWSolver(tree_queries=5000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
                        k_action=3,
                        alpha_action=0.25,
                        k_observation=2,
-                       alpha_observation=0.1,
-                       criterion=POMCPOW.MaxUCB(100.0),
-                       # final_criterion=POMCPOW.MaxQ(),
-                       final_criterion=POMCPOW.MaxTries(),
-                       # estimate_value=0.0
-                       estimate_value=leaf_estimation
+                       alpha_observation=0.25,
+                       criterion=POMCPOW.MaxUCB(50.0),
+                       final_criterion=POMCPOW.MaxQ(),
+                       # final_criterion=POMCPOW.MaxTries(),
+                       estimate_value=0.0
+                       # estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
@@ -50,9 +50,9 @@ planner = POMDPs.solve(solver, m)
 # MineralExploration.std(volumes)
 
 # println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, B[8], tree_in_info=true)
-# tree = info[:tree]
-# inbrowser(D3Tree(tree, init_expand=1), "firefox")
+@profview a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
+tree = info[:tree]
+inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
 println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
@@ -75,9 +75,15 @@ vars = [p[1] for p in b0.particles]
 mean_vars = mean(vars)
 std_vars = std(vars)
 println("Vars: $mean_vars ± $std_vars")
+
+vols = [sum(p[2] .>= 0.7) for p in b0.particles]
+mean_vols = mean(vols)
+std_vols = std(vols)
+println("Vols: $mean_vols ± $std_vols")
 # fig = histogram(vars, bins=10 )
 # display(fig)
-
+# fig = histogram(vols, bins=10 )
+# display(fig)
 b_new = nothing
 a_new = nothing
 discounted_return = 0.0
