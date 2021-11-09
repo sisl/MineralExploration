@@ -3,7 +3,6 @@
     reservoir_dims::Tuple{Float64, Float64, Float64} = (2000.0, 2000.0, 30.0) #  lat x lon x thick in meters
     grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
-    time_interval::Float64 = 1.0 # Minimum time between bores (in months)
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
@@ -14,8 +13,8 @@
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.3
-    gp_weight::Float64 = 0.5
+    gp_mean::Float64 = 0.0
+    gp_weight::Float64 = 0.7
     mainbody_weight::Float64 = 0.9
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
@@ -28,15 +27,11 @@ function GeoStatsDistribution(p::MineralExplorationPOMDP)
     variogram = SphericalVariogram(sill=p.variogram[1], range=p.variogram[2],
                                     nugget=p.variogram[3])
     domain = CartesianGrid{Int64}(p.grid_dim[1], p.grid_dim[2])
-    lu_params = LUParams(variogram, domain)
     return GeoStatsDistribution(grid_dims=p.grid_dim,
                                 data=deepcopy(p.initial_data),
                                 domain=domain,
                                 mean=p.gp_mean,
-                                gp_weight=p.gp_weight,
-                                massive_threshold=p.massive_threshold,
-                                variogram=variogram,
-                                lu_params=lu_params)
+                                variogram=variogram)
 end
 
 """
@@ -114,10 +109,10 @@ end
 function Base.rand(d::MEInitStateDist)
     gp_ore_map = Base.rand(d.rng, d.gp_distribution)
 
-    gp_ore_map ./= 0.3 # TODO
+    # gp_ore_map ./= 0.3 # TODO
     gp_ore_map .*= d.gp_weight
 
-    clamp!(gp_ore_map, 0.0, d.massive_thresh)
+    # clamp!(gp_ore_map, 0.0, d.massive_thresh)
 
     x_dim = d.gp_distribution.grid_dims[1]
     y_dim = d.gp_distribution.grid_dims[2]
@@ -136,18 +131,28 @@ function Base.rand(d::MEInitStateDist)
     lode_map = repeat(lode_map, outer=(1, 1, 1))
 
     ore_map = lode_map + gp_ore_map
-    # clamp!(ore_map, 0.0, 1.0)
+    clamp!(ore_map, 0.0, Inf)
     # ore_map = gp_ore_map
     MEState(ore_map, mainbody_var, lode_map,
-            d.gp_distribution.data.coordinates, false, false)
+            RockObservations(), false, false)
 end
 
 Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
 
 function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
-    r = m.strike_reward*sum(s.mainbody_map[:,:,1] .>= m.massive_threshold)
+    r = m.strike_reward*sum(s.mainbody_map .>= m.massive_threshold)
     r -= m.extraction_cost
     return r
+end
+
+function gen_observation(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Random.AbstractRNG)
+    if s.ore_map[1,1,1] != -1.0
+        return s.ore_map[a.coords[1], a.coords[2], 1]
+    else
+        coords = reshape([float(a.coords[1]), float(a.coords[2])], 2, 1)
+        dist = GeoStatsDistribution(m)
+        return rand(rng, dist, coords)
+    end
 end
 
 function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Random.AbstractRNG)
@@ -157,34 +162,36 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
     if a_type == :stop && !stopped && !decided
         obs = MEObservation(nothing, true, false)
         r = 0.0
-        coords_p = s.bore_coords
+        rock_obs_p = s.rock_obs
         stopped_p = true
         decided_p = false
     elseif a_type == :abandon && stopped && !decided
         obs = MEObservation(nothing, true, true)
         r = 0.0
-        coords_p = s.bore_coords
+        rock_obs_p = s.rock_obs
         stopped_p = true
         decided_p = true
     elseif a_type == :mine && stopped && !decided
         obs = MEObservation(nothing, true, true)
         r = extraction_reward(m, s)
-        coords_p = s.bore_coords
+        rock_obs_p = s.rock_obs
         stopped_p = true
         decided_p = true
     elseif a_type ==:drill && !stopped && !decided
-        ore_obs = s.ore_map[a.coords[1], a.coords[2], 1]
+        ore_obs = gen_observation(m, s, a, rng)
         a = reshape(Int64[a.coords[1] a.coords[2]], 2, 1)
         r = -m.drill_cost
-        coords_p = [s.bore_coords a]
-        n_bores = size(coords_p)[2]
+        rock_obs_p = deepcopy(s.rock_obs)
+        rock_obs_p.coordinates = hcat(rock_obs_p.coordinates, a)
+        push!(rock_obs_p.ore_quals, ore_obs)
+        n_bores = length(rock_obs_p.ore_quals)
         stopped_p = n_bores >= m.max_bores
         decided_p = false
         obs = MEObservation(ore_obs, stopped_p, false)
     else
         error("Invalid Action! Action: $a, Stopped: $stopped, Decided: $decided")
     end
-    sp = MEState(s.ore_map, s.var, coords_p, stopped_p, decided_p)
+    sp = MEState(s.ore_map, s.var, s.mainbody_map, rock_obs_p, stopped_p, decided_p)
     return (sp=sp, o=obs, r=r)
 end
 

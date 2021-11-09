@@ -23,11 +23,11 @@ s0 = rand(ds0)
 
 up = MEBeliefUpdater(m, 1000)
 println("Initializing belief...")
-# b0 = POMDPs.initialize_belief(up, ds0)
+b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 next_action = NextActionSampler() #b0, up)
-solver = POMCPOWSolver(tree_queries=100000,
+solver = POMCPOWSolver(tree_queries=1000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
@@ -71,12 +71,10 @@ display(fig)
 fig = plot(b0)
 display(fig)
 
-mb_var = b0.particles[1].var
-@show mb_var
-# vars = [p.var for p in b0.particles]
-# mean_vars = mean(vars)
-# std_vars = std(vars)
-# println("Vars: $mean_vars ± $std_vars")
+vars = [p[1] for p in b0.particles]
+mean_vars = mean(vars)
+std_vars = std(vars)
+println("Vars: $mean_vars ± $std_vars")
 # fig = histogram(vars, bins=10 )
 # display(fig)
 
@@ -92,6 +90,10 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     local fig
     local volumes
     local mb_var
+
+    local vars
+    local mean_vars
+    local std_vars
     a_new = a
     b_new = bp
     @show t
@@ -100,7 +102,7 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     @show sp.stopped
     @show bp.stopped
 
-    volumes = Float64[sum(p.ore_map[:,:,1] .>= m.massive_threshold) for p in bp.particles]
+    volumes = Float64[sum(p[2][:,:,1] .>= m.massive_threshold) for p in bp.particles]
     mean_volume = mean(volumes)
     std_volume = std(volumes)
     volume_lcb = mean_volume - 1.0*std_volume
@@ -114,8 +116,10 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     # savefig(fig, str)
     display(fig)
 
-    mb_var = bp.particles[1].var
-    @show mb_var
+    vars = [p[1] for p in bp.particles]
+    mean_vars = mean(vars)
+    std_vars = std(vars)
+    println("Vars: $mean_vars ± $std_vars")
     # fig = histogram(vars, bins=10)
     # display(fig)
     discounted_return += POMDPs.discount(m)^(t - 1)*r

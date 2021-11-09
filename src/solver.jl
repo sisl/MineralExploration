@@ -152,10 +152,10 @@ function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.
     if s.stopped
         γ = POMDPs.discount(pomdp)
     else
-        if s.bore_coords == nothing
+        if isempty(s.rock_obs.ore_quals)
             bores = 0
         else
-            bores = size(s.bore_coords)[2]
+            bores = length(s.rock_obs.ore_quals)
         end
         t = pomdp.max_bores - bores + 1
         γ = POMDPs.discount(pomdp)^t

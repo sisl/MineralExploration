@@ -32,7 +32,7 @@ function belief_scores(m, v)
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
     scores = norm_mean .* norm_std
-    scores .+= 1.0/(size(m)[1] * size(m)[2])
+    # scores .+= 1.0/(size(m)[1] * size(m)[2])
     # scores = norm_mean .+ 3.0*norm_std
     # scores = norm_mean
     # scores = norm_std
@@ -70,14 +70,14 @@ initialize_data!(m, N_INITIAL)
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 1000)
+up = MEBeliefUpdater(m, 100)
 println("Initializing belief...")
-# b0 = POMDPs.initialize_belief(up, ds0)
+b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 b = b0
-# b = POMDPs.update(up, b0, MEAction(coords=CartesianIndex(20, 30)),
-#                 MEObservation(s0.ore_map[20, 30, 1], false, false))
+b = POMDPs.update(up, b0, MEAction(coords=CartesianIndex(20, 30)),
+                MEObservation(s0.ore_map[20, 30, 1], false, false))
 # b = POMDPs.update(up, b, MEAction(coords=CartesianIndex(30, 30)),
 #                 MEObservation(s0.ore_map[30, 30, 1], false, false))
 

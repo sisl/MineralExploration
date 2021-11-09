@@ -1,20 +1,24 @@
 
 struct MEBelief
+    particles::Vector{Tuple{Float64, Array{Float64, 3}}} # Vector of vars & lode maps
     rock_obs::RockObservations
-    stopped::Bool
-    particles::Vector{Tuple{Float64, Array{Float64}}} # Vector of vars & lode maps
     acts::Vector{MEAction}
     obs::Vector{MEObservation}
-    geostats::GeoStatsDistribution
+    stopped::Bool
+    decided::Bool
+    full::Bool # Whether or not to generate full state maps # TODO Implement this
+    gp_dist::GeoStatsDistribution
 end
 
 struct MEBeliefUpdater <: POMDPs.Updater
     m::MineralExplorationPOMDP
     n::Int64
+    full::Bool
     rng::AbstractRNG
 end
 
-MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64) = MEBeliefUpdater(m, n, Random.GLOBAL_RNG)
+MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, full::Bool=false) =
+                                MEBeliefUpdater(m, n, full, Random.GLOBAL_RNG)
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     x_dim = d.gp_distribution.grid_dims[1]
@@ -43,16 +47,24 @@ function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     rock_obs = RockObservations()
     acts = MEAction[]
     obs = MEObservation[]
-    return MEBelief(rock_obs, false, particles, acts, obs, gp_dist)
+    return MEBelief(particles, rock_obs, acts, obs, false, false, up.full, gp_dist)
 end
 
-function variogram(x, y, a, c) # point 1, point 2, range, sill
-    h = sqrt(sum((x - y).^2))
-    if h <= a
-        return c*(1.5*h/a - 0.5*(h/a)^3)
-    else
-        return c
-    end
+function calc_K(b::MEBelief, rock_obs::RockObservations)
+    pdomain = b.gp_dist.domain
+    table = DataFrame(ore=rock_obs.ore_quals .- b.gp_dist.mean)
+    domain = PointSet(rock_obs.coordinates)
+    pdata = georef(table, domain)
+    vmapping = map(pdata, pdomain, (:ore,), GeoStats.NearestMapping())[:ore]
+    # dlocs = Int[]
+    # for (loc, dloc) in vmapping
+    #     push!(dlocs, loc)
+    # end
+    dlocs = Int64[m[1] for m in vmapping]
+    𝒟d = [centroid(pdomain, i) for i in dlocs]
+    γ = b.gp_dist.variogram
+    K = GeoStats.sill(γ) .- GeoStats.pairwise(γ, 𝒟d)
+    return K
 end
 
 function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
@@ -62,31 +74,15 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservatio
     bore_coords = hcat(bore_coords, [a.coords[1], a.coords[2]])
     ore_obs = [o.ore_quality for o in b.obs]
     push!(ore_obs, o.ore_quality)
-    K = zeros(Float64, n+1, n+1)
-    marginal_var = 0.006681951232101568
-    for i = 1:n+1
-        for j = 1:n+1
-            K[i, j] = clamp(marginal_var - variogram(bore_coords[:, i], bore_coords[:, j], up.m.variogram[2], marginal_var), 0.0, Inf)
-            if i == j
-                K[i, j] += 1e-6
-            end
-        end
-    end
+    K = calc_K(b, RockObservations(ore_quals=ore_obs, coordinates=bore_coords))
+    mu = zeros(Float64, n+1) .+ up.m.gp_mean
+    gp_dist = MvNormal(mu, K)
     for (mb_var, mb_map) in b.particles
-        mainbody_cov = [mb_var 0.0; 0.0 mb_var]
-        # mainbody_dist = MvNormal(up.m.mainbody_loc, mainbody_cov)
-        # mainbody_max = 1.0/(2*π*s.var)
-
-        w = 1.0
         o_n = zeros(Float64, n+1)
         for i = 1:n+1
             o_mainbody = mb_map[bore_coords[1, i], bore_coords[2, i]]
-            # o_mainbody /= mainbody_max
-            # o_mainbody *= up.m.mainbody_weight
-            o_n[i] = (ore_obs[i] - o_mainbody)*0.3/up.m.gp_weight
+            o_n[i] = (ore_obs[i] - o_mainbody)/up.m.gp_weight
         end
-        mu = zeros(Float64, n+1) .+ 0.3
-        gp_dist = MvNormal(mu, K)
         w = pdf(gp_dist, o_n)
         push!(ws, w)
     end
@@ -103,7 +99,7 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
             mainbody_var += randn()
             mainbody_var = clamp(mainbody_var, 0.0, Inf)
             mainbody_map = zeros(Float64, Int(up.m.grid_dim[1]), Int(up.m.grid_dim[2]))
-            cov = [mainbody_var 0.0; 0.0 mainbody_var]
+            cov = Distributions.PDiagMat([mainbody_var, mainbody_var])
             mvnorm = MvNormal(up.m.mainbody_loc, cov)
             for i = 1:up.m.grid_dim[1]
                 for j = 1:up.m.grid_dim[2]
@@ -113,6 +109,7 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
             max_lode = maximum(mainbody_map)
             mainbody_map ./= max_lode
             mainbody_map .*= up.m.mainbody_weight
+            mainbody_map = reshape(mainbody_map, up.m.grid_dim)
         end
         push!(mainbody_vars, mainbody_var)
         push!(particles, (mainbody_var, mainbody_map))
@@ -129,21 +126,13 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::MEAction, o::MEObservation)
     if a.type != :drill
         bp_particles = Tuple{Float64, Array{Float64}}[p for p in b.particles]
-        bp_rock = b.geostats.data
-        bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, bp_rock,
-                                        b.geostats.domain, b.geostats.mean, b.geostats.gp_weight,
-                                        b.geostats.massive_threshold, b.geostats.variogram, b.geostats.lu_params)
+        bp_rock = b.rock_obs
     else
         bp_particles = update_particles(up, b, a, o)
-        bp_rock = b.geostats.data
+        bp_rock = b.rock_obs
         bp_rock.coordinates = hcat(bp_rock.coordinates, [a.coords[1], a.coords[2]])
         push!(bp_rock.ore_quals, o.ore_quality)
-        bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, bp_rock,
-                                        b.geostats.domain, b.geostats.mean, b.geostats.gp_weight,
-                                        b.geostats.massive_threshold, b.geostats.variogram, b.geostats.lu_params)
-        update!(bp_geostats, bp_rock)
     end
-    bp_stopped = o.stopped
 
     bp_acts = MEAction[]
     for act in b.acts
@@ -157,36 +146,44 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
     end
     push!(bp_obs, o)
 
-    return MEBelief(bp_rock, bp_stopped, bp_particles, bp_acts, bp_obs, bp_geostats)
+    bp_stopped = o.stopped
+    bp_decided = o.decided
+    bp_full = b.full
+
+    bp_geostats = GeoStatsDistribution(b.gp_dist.grid_dims, bp_rock,
+                                        b.gp_dist.domain, b.gp_dist.mean,
+                                        b.gp_dist.variogram)
+    return MEBelief(bp_particles, bp_rock, bp_acts, bp_obs, bp_stopped,
+                    bp_decided, bp_full, bp_geostats)
 end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)
     mainbody_var, lode_map = rand(rng, b.particles)
-    gp_ore_map = Base.rand(rng, b.geostats)
-
-    gp_ore_map ./= 0.3
-    gp_ore_map .*= b.geostats.gp_weight
-
-    clamp!(gp_ore_map, 0.0, b.geostats.massive_threshold)
-
-    ore_map = lode_map + gp_ore_map
-    return MEState(ore_map, mainbody_var, lode_map,
-            b.rock_obs.coordinates, b.stopped, false)
+    if b.full
+        gp_ore_map = Base.rand(rng, b.geostats)
+        gp_ore_map .*= b.geostats.gp_weight
+        ore_map = lode_map + gp_ore_map
+        clamp!(ore_map, 0.0, Inf)
+    else
+        ore_map = zero(lode_map) .- 1.0
+    end
+    return MEState(ore_map, mainbody_var, lode_map, deepcopy(b.rock_obs),
+                    b.stopped, false)
 end
 
 Base.rand(b::MEBelief) = rand(Random.GLOBAL_RNG, b)
 
 function summarize(b::MEBelief)
-    (x, y, z) = size(b.particles[1].ore_map)
+    (x, y, z) = size(b.particles[1][2])
     μ = zeros(Float64, x, y, z)
     w = 1.0/length(b.particles)
-    for (i, p) in enumerate(b.particles)
-        ore_map = convert(Array{Float64, 3}, p.ore_map)
+    for p in b.particles
+        ore_map = p[2]
         μ .+= ore_map .* w
     end
     σ² = zeros(Float64, x, y, z)
-    for (i, p) in enumerate(b.particles)
-        ore_map = convert(Array{Float64, 3}, p.ore_map)
+    for p in b.particles
+        ore_map = p[2]
         σ² .+= w*(ore_map - μ).^2
     end
     return (μ, σ²)
@@ -198,10 +195,10 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
     else
         action_set = Set(POMDPs.actions(m))
         n_initial = length(m.initial_data)
-        if b.bore_coords != nothing
-            n_obs = size(b.bore_coords)[2] - n_initial
+        if !isempty(b.rock_obs.ore_quals)
+            n_obs = length(b.rock_obs.ore_quals) - n_initial
             for i=1:n_obs
-                coord = b.bore_coords[:, i + n_initial]
+                coord = b.rock_obs.coordinates[:, i + n_initial]
                 x = Int64(coord[1])
                 y = Int64(coord[2])
                 keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
@@ -224,10 +221,10 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
     else
         action_set = Set(POMDPs.actions(m))
         n_initial = length(m.initial_data)
-        if s.bore_coords != nothing
-            n_obs = size(s.bore_coords)[2] - n_initial
+        if !isempty(s.rock_obs.ore_quals)
+            n_obs = length(s.rock_obs.ore_quals) - n_initial
             for i=1:n_obs
-                coord = s.bore_coords[:, i + n_initial]
+                coord = s.rock_obs.coordinates[:, i + n_initial]
                 x = Int64(coord[1])
                 y = Int64(coord[2])
                 keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
@@ -255,12 +252,12 @@ function POMDPs.actions(m::MineralExplorationPOMDP, o::MEObservation)
 end
 
 function mean_var(b::MEBelief)
-    vars = [s.var for s in b.particles]
+    vars = [s[1] for s in b.particles]
     mean(vars)
 end
 
 function std_var(b::MEBelief)
-    vars = [s.var for s in b.particles]
+    vars = [s[1] for s in b.particles]
     std(vars)
 end
 
@@ -275,9 +272,9 @@ function Plots.plot(b::MEBelief, t=nothing)
     end
     fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
     fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2))
-    if b.bore_coords != nothing
-        x = b.bore_coords[2, :]
-        y = b.bore_coords[1, :]
+    if !isempty(b.rock_obs.ore_quals)
+        x = b.rock_obs.coordinates[2, :]
+        y = b.rock_obs.coordinates[1, :]
         plot!(fig1, x, y, seriestype = :scatter)
         plot!(fig2, x, y, seriestype = :scatter)
     end
