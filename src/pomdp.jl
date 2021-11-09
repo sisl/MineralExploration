@@ -15,8 +15,8 @@
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
     gp_mean::Float64 = 0.3
-    gp_weight::Float64 = 0.35
-    mainbody_weight::Float64 = 0.45
+    gp_weight::Float64 = 0.5
+    mainbody_weight::Float64 = 0.9
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
     mainbody_var_max::Float64 = 80.0
@@ -28,11 +28,15 @@ function GeoStatsDistribution(p::MineralExplorationPOMDP)
     variogram = SphericalVariogram(sill=p.variogram[1], range=p.variogram[2],
                                     nugget=p.variogram[3])
     domain = CartesianGrid{Int64}(p.grid_dim[1], p.grid_dim[2])
+    lu_params = LUParams(variogram, domain)
     return GeoStatsDistribution(grid_dims=p.grid_dim,
                                 data=deepcopy(p.initial_data),
                                 domain=domain,
                                 mean=p.gp_mean,
-                                variogram=variogram)
+                                gp_weight=p.gp_weight,
+                                massive_threshold=p.massive_threshold,
+                                variogram=variogram,
+                                lu_params=lu_params)
 end
 
 """
@@ -101,8 +105,8 @@ struct MEInitStateDist
 end
 
 function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP)
-    reservoir_dist = GeoStatsDistribution(m)
-    MEInitStateDist(reservoir_dist, m.gp_weight, m.mainbody_weight,
+    gp_dist = GeoStatsDistribution(m)
+    MEInitStateDist(gp_dist, m.gp_weight, m.mainbody_weight,
                     m.mainbody_loc, m.mainbody_var_max, m.mainbody_var_min,
                     m.massive_threshold, m.rng)
 end
@@ -129,19 +133,19 @@ function Base.rand(d::MEInitStateDist)
     max_lode = maximum(lode_map)
     lode_map ./= max_lode
     lode_map .*= d.mainbody_weight
-    lode_map = repeat(lode_map, outer=(1, 1, 8))
+    lode_map = repeat(lode_map, outer=(1, 1, 1))
 
     ore_map = lode_map + gp_ore_map
     # clamp!(ore_map, 0.0, 1.0)
     # ore_map = gp_ore_map
-    MEState(ore_map, mainbody_var,
+    MEState(ore_map, mainbody_var, lode_map,
             d.gp_distribution.data.coordinates, false, false)
 end
 
 Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
 
 function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
-    r = m.strike_reward*sum(s.ore_map[:,:,1] .>= m.massive_threshold)
+    r = m.strike_reward*sum(s.mainbody_map[:,:,1] .>= m.massive_threshold)
     r -= m.extraction_cost
     return r
 end
