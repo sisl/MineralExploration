@@ -7,7 +7,7 @@
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
-    drill_cost::Float64 = 0.0
+    drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 100.0
     extraction_lcb::Float64 = 0.9
@@ -15,7 +15,7 @@
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
     gp_mean::Float64 = 0.0
-    gp_weight::Float64 = 0.3
+    gp_weight::Float64 = 0.7
     mainbody_weight::Float64 = 0.9
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0

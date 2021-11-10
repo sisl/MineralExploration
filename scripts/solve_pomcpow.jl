@@ -35,7 +35,7 @@ solver = POMCPOWSolver(tree_queries=1000,
                        alpha_action=0.25,
                        k_observation=2,
                        alpha_observation=0.25,
-                       criterion=POMCPOW.MaxUCB(50.0),
+                       criterion=POMCPOW.MaxUCB(100.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        # estimate_value=0.0
@@ -49,10 +49,10 @@ planner = POMDPs.solve(solver, m)
 # mean(volumes)
 # MineralExploration.std(volumes)
 
-# println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
-# tree = info[:tree]
-# inbrowser(D3Tree(tree, init_expand=1), "firefox")
+println("Building test tree...")
+a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
+tree = info[:tree]
+inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
 println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
