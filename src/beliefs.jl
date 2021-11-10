@@ -127,10 +127,13 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::MEAction, o::MEObservation)
     if a.type != :drill
         bp_particles = Tuple{Float64, Array{Float64}}[p for p in b.particles]
-        bp_rock = b.rock_obs
+        # bp_rock = b.rock_obs
+        bp_rock = RockObservations(ore_quals=deepcopy(b.rock_obs.ore_quals),
+                                coordinates=deepcopy(b.rock_obs.coordinates))
     else
         bp_particles = update_particles(up, b, a, o)
-        bp_rock = b.rock_obs
+        bp_rock = RockObservations(ore_quals=deepcopy(b.rock_obs.ore_quals),
+                                coordinates=deepcopy(b.rock_obs.coordinates))
         bp_rock.coordinates = hcat(bp_rock.coordinates, [a.coords[1], a.coords[2]])
         push!(bp_rock.ore_quals, o.ore_quality)
     end
@@ -206,6 +209,11 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
                 keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
                 setdiff!(action_set, keepout_acts)
             end
+            if n_obs < m.min_bores
+                delete!(action_set, MEAction(type=:stop))
+            end
+        elseif m.min_bores > 0
+            delete!(action_set, MEAction(type=:stop))
         end
         delete!(action_set, MEAction(type=:mine))
         delete!(action_set, MEAction(type=:abandon))
@@ -232,6 +240,11 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
                 keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
                 setdiff!(action_set, keepout_acts)
             end
+            if n_obs < m.min_bores
+                delete!(action_set, MEAction(type=:stop))
+            end
+        elseif m.min_bores > 0
+            delete!(action_set, MEAction(type=:stop))
         end
         delete!(action_set, MEAction(type=:mine))
         delete!(action_set, MEAction(type=:abandon))

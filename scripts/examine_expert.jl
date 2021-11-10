@@ -31,7 +31,7 @@ function belief_scores(m, v)
     s = sqrt.(v[:,:,1])
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
-    scores = norm_mean .* norm_std
+    scores = norm_mean .+ norm_std
     # scores .+= 1.0/(size(m)[1] * size(m)[2])
     # scores = norm_mean .+ 3.0*norm_std
     # scores = norm_mean

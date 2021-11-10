@@ -3,6 +3,7 @@
     reservoir_dims::Tuple{Float64, Float64, Float64} = (2000.0, 2000.0, 30.0) #  lat x lon x thick in meters
     grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
+    min_bores::Int64 = 0 # Minimum number of bores
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
@@ -14,7 +15,7 @@
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
     gp_mean::Float64 = 0.0
-    gp_weight::Float64 = 0.7
+    gp_weight::Float64 = 0.3
     mainbody_weight::Float64 = 0.9
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0

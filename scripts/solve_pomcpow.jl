@@ -27,7 +27,7 @@ b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 next_action = NextActionSampler() #b0, up)
-solver = POMCPOWSolver(tree_queries=5000,
+solver = POMCPOWSolver(tree_queries=1000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
@@ -38,8 +38,8 @@ solver = POMCPOWSolver(tree_queries=5000,
                        criterion=POMCPOW.MaxUCB(50.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
-                       estimate_value=0.0
-                       # estimate_value=leaf_estimation
+                       # estimate_value=0.0
+                       estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
@@ -50,9 +50,9 @@ planner = POMDPs.solve(solver, m)
 # MineralExploration.std(volumes)
 
 # println("Building test tree...")
-@profview a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
-tree = info[:tree]
-inbrowser(D3Tree(tree, init_expand=1), "firefox")
+# a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
+# tree = info[:tree]
+# inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
 println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
