@@ -9,13 +9,13 @@
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 100.0
-    extraction_lcb::Float64 = 0.6
+    extraction_cost::Float64 = 125.0
+    extraction_lcb::Float64 = 0.1
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.3
-    gp_weight::Float64 = 1.0
+    gp_mean::Float64 = 0.0
+    gp_weight::Float64 = 0.5
     mainbody_weight::Float64 = 0.7
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
@@ -87,7 +87,7 @@ function initialize_data!(p::MineralExplorationPOMDP, coords::Array)
 end
 
 POMDPs.discount(::MineralExplorationPOMDP) = 0.99
-POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.decided
+POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.stopped
 
 struct MEInitStateDist
     gp_distribution::GeoStatsDistribution
@@ -132,10 +132,11 @@ function Base.rand(d::MEInitStateDist)
     lode_map = repeat(lode_map, outer=(1, 1, 1))
 
     ore_map = lode_map + gp_ore_map
-    clamp!(ore_map, 0.0, Inf)
+    # clamp!(ore_map, 0.0, Inf)
     # ore_map = gp_ore_map
+    particles = Vector{Tuple{Float64, Array{Float64, 3}}}[]
     MEState(ore_map, mainbody_var, lode_map,
-            RockObservations(), false, false)
+            RockObservations(), false, particles)
 end
 
 Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
@@ -151,34 +152,41 @@ function gen_observation(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rn
         return s.ore_map[a.coords[1], a.coords[2], 1]
     else
         coords = reshape([float(a.coords[1]), float(a.coords[2])], 2, 1)
-        dist = GeoStatsDistribution(m)
-        return rand(rng, dist, coords)
+        dist = GeoStatsDistribution(m) #TODO add coordinates
+        gp_obs = rand(rng, dist, coords)
+        mb_obs = s.mainbody_map[a.coords[1], a.coords[2], 1]
+        return mb_obs + gp_obs * m.gp_weight
     end
 end
 
 function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Random.AbstractRNG)
     stopped = s.stopped
-    decided = s.decided
     a_type = a.type
-    if a_type == :stop && !stopped && !decided
-        obs = MEObservation(nothing, true, false)
-        r = 0.0
+    if a_type == :stop && !stopped
+        obs = MEObservation(nothing, true)
         rock_obs_p = s.rock_obs
         stopped_p = true
-        decided_p = false
-    elseif a_type == :abandon && stopped && !decided
-        obs = MEObservation(nothing, true, true)
-        r = 0.0
-        rock_obs_p = s.rock_obs
-        stopped_p = true
-        decided_p = true
-    elseif a_type == :mine && stopped && !decided
-        obs = MEObservation(nothing, true, true)
-        r = extraction_reward(m, s)
-        rock_obs_p = s.rock_obs
-        stopped_p = true
-        decided_p = true
-    elseif a_type ==:drill && !stopped && !decided
+        if s.ore_map[1,1,1] == -1.0
+            if length(s.rock_obs) > 0
+                variogram = SphericalVariogram(sill=m.variogram[1], range=m.variogram[2],
+                                                nugget=m.variogram[3])
+                wp = reweight(s.particles, s.rock_obs, m.grid_dim, variogram, m.gp_mean, m.gp_weight, a, obs)
+                particles = resample(s.particles, wp, m.grid_dim, m.mainbody_loc, m.mainbody_weight, a, obs, rng)
+            else
+                particles = deepcopy(s.particles)
+            end
+        else
+            particles = deepcopy(s.particles)
+        end
+        volumes = [m.strike_reward*sum(p[2] .>= m.massive_threshold) for p in particles]
+        vol_mean = mean(volumes)
+        vol_std = std(volumes)
+        if vol_mean - m.extraction_lcb*vol_std > m.extraction_cost
+            r = extraction_reward(m, s)
+        else
+            r = 0.0
+        end
+    elseif a_type ==:drill && !stopped
         ore_obs = gen_observation(m, s, a, rng)
         a = reshape(Int64[a.coords[1] a.coords[2]], 2, 1)
         r = -m.drill_cost
@@ -187,12 +195,12 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
         push!(rock_obs_p.ore_quals, ore_obs)
         n_bores = length(rock_obs_p.ore_quals)
         stopped_p = n_bores >= m.max_bores
-        decided_p = false
-        obs = MEObservation(ore_obs, stopped_p, false)
+        obs = MEObservation(ore_obs, stopped_p)
+        particles = deepcopy(s.particles)
     else
-        error("Invalid Action! Action: $a, Stopped: $stopped, Decided: $decided")
+        error("Invalid Action! Action: $a, Stopped: $stopped")
     end
-    sp = MEState(s.ore_map, s.var, s.mainbody_map, rock_obs_p, stopped_p, decided_p)
+    sp = MEState(s.ore_map, s.var, s.mainbody_map, rock_obs_p, stopped_p, particles)
     return (sp=sp, o=obs, r=r)
 end
 
@@ -200,8 +208,7 @@ end
 function POMDPs.actions(m::MineralExplorationPOMDP)
     idxs = CartesianIndices(m.grid_dim[1:2])
     bore_actions = reshape(collect(idxs), prod(m.grid_dim[1:2]))
-    actions = MEAction[MEAction(type=:stop), MEAction(type=:mine),
-                        MEAction(type=:abandon)]
+    actions = MEAction[MEAction(type=:stop)]
     for coord in bore_actions
         push!(actions, MEAction(coords=coord))
     end
@@ -209,10 +216,8 @@ function POMDPs.actions(m::MineralExplorationPOMDP)
 end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
-    if s.decided
+    if s.stopped
         return MEAction[]
-    elseif s.stopped
-        return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
     else
         action_set = Set(POMDPs.actions(m))
         for i=1:size(s.bore_coords)[2]
@@ -223,8 +228,6 @@ function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
             keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
             setdiff!(action_set, keepout_acts)
         end
-        delete!(action_set, MEAction(type=:mine))
-        delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)
     end
     return MEAction[]

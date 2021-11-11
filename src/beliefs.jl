@@ -5,7 +5,6 @@ struct MEBelief
     acts::Vector{MEAction}
     obs::Vector{MEObservation}
     stopped::Bool
-    decided::Bool
     full::Bool # Whether or not to generate full state maps # TODO Implement this
     gp_dist::GeoStatsDistribution
 end
@@ -47,80 +46,13 @@ function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     rock_obs = RockObservations()
     acts = MEAction[]
     obs = MEObservation[]
-    return MEBelief(particles, rock_obs, acts, obs, false, false, up.full, gp_dist)
-end
-
-function calc_K(b::MEBelief, rock_obs::RockObservations)
-    pdomain = b.gp_dist.domain
-    table = DataFrame(ore=rock_obs.ore_quals .- b.gp_dist.mean)
-    domain = PointSet(rock_obs.coordinates)
-    pdata = georef(table, domain)
-    vmapping = map(pdata, pdomain, (:ore,), GeoStats.NearestMapping())[:ore]
-    # dlocs = Int[]
-    # for (loc, dloc) in vmapping
-    #     push!(dlocs, loc)
-    # end
-    dlocs = Int64[m[1] for m in vmapping]
-    𝒟d = [centroid(pdomain, i) for i in dlocs]
-    γ = b.gp_dist.variogram
-    K = GeoStats.sill(γ) .- GeoStats.pairwise(γ, 𝒟d)
-    return K
-end
-
-function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
-    ws = Float64[]
-    bore_coords = b.rock_obs.coordinates
-    n = size(bore_coords)[2]
-    bore_coords = hcat(bore_coords, [a.coords[1], a.coords[2]])
-    ore_obs = [o.ore_quality for o in b.obs]
-    push!(ore_obs, o.ore_quality)
-    K = calc_K(b, RockObservations(ore_quals=ore_obs, coordinates=bore_coords))
-    mu = zeros(Float64, n+1) .+ up.m.gp_mean
-    gp_dist = MvNormal(mu, K)
-    for (mb_var, mb_map) in b.particles
-        o_n = zeros(Float64, n+1)
-        for i = 1:n+1
-            o_mainbody = mb_map[bore_coords[1, i], bore_coords[2, i]]
-            o_n[i] = (ore_obs[i] - o_mainbody)/up.m.gp_weight
-        end
-        w = pdf(gp_dist, o_n)
-        push!(ws, w)
-    end
-    ws .+= 1e-6
-    ws ./= sum(ws)
-    return ws
-end
-
-function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAction, o::MEObservation)
-    sampled_particles = sample(up.rng, b.particles, StatsBase.Weights(wp), up.n, replace=true)
-    mainbody_vars = Float64[]
-    particles = Tuple{Float64, Array{Float64}}[]
-    for (mainbody_var, mainbody_map) in sampled_particles
-        if mainbody_var ∈ mainbody_vars
-            mainbody_var += randn()
-            mainbody_var = clamp(mainbody_var, 0.0, Inf)
-            mainbody_map = zeros(Float64, Int(up.m.grid_dim[1]), Int(up.m.grid_dim[2]))
-            cov = Distributions.PDiagMat([mainbody_var, mainbody_var])
-            mvnorm = MvNormal(up.m.mainbody_loc, cov)
-            for i = 1:up.m.grid_dim[1]
-                for j = 1:up.m.grid_dim[2]
-                    mainbody_map[i, j] = pdf(mvnorm, [float(i), float(j)])
-                end
-            end
-            max_lode = maximum(mainbody_map)
-            mainbody_map ./= max_lode
-            mainbody_map .*= up.m.mainbody_weight
-            mainbody_map = reshape(mainbody_map, up.m.grid_dim)
-        end
-        push!(mainbody_vars, mainbody_var)
-        push!(particles, (mainbody_var, mainbody_map))
-    end
-    return particles
+    return MEBelief(particles, rock_obs, acts, obs, false, up.full, gp_dist)
 end
 
 function update_particles(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
-    wp = reweight(up, b, a, o)
-    pp = resample(up, b, wp, a, o)
+    wp = reweight(b.particles, b.rock_obs, up.m.grid_dim, b.gp_dist.variogram, up.m.gp_mean, up.m.gp_weight, a, o)
+    pp = resample(b.particles, wp, up.m.grid_dim, up.m.mainbody_loc, up.m.mainbody_weight, a, o, up.rng)
+    return pp
 end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
@@ -151,14 +83,13 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
     push!(bp_obs, o)
 
     bp_stopped = o.stopped
-    bp_decided = o.decided
     bp_full = b.full
 
     bp_geostats = GeoStatsDistribution(b.gp_dist.grid_dims, bp_rock,
                                         b.gp_dist.domain, b.gp_dist.mean,
                                         b.gp_dist.variogram)
     return MEBelief(bp_particles, bp_rock, bp_acts, bp_obs, bp_stopped,
-                    bp_decided, bp_full, bp_geostats)
+                    bp_full, bp_geostats)
 end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)
@@ -167,12 +98,12 @@ function Base.rand(rng::AbstractRNG, b::MEBelief)
         gp_ore_map = Base.rand(rng, b.geostats)
         gp_ore_map .*= b.geostats.gp_weight
         ore_map = lode_map + gp_ore_map
-        clamp!(ore_map, 0.0, Inf)
+        # clamp!(ore_map, 0.0, Inf)
     else
         ore_map = zero(lode_map) .- 1.0
     end
     return MEState(ore_map, mainbody_var, lode_map, deepcopy(b.rock_obs),
-                    b.stopped, false)
+                    b.stopped, b.particles)
 end
 
 Base.rand(b::MEBelief) = rand(Random.GLOBAL_RNG, b)
@@ -195,7 +126,7 @@ end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
     if b.stopped
-        return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
+        return MEAction[]
     else
         action_set = Set(POMDPs.actions(m))
         n_initial = length(m.initial_data)
@@ -215,8 +146,6 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
         elseif m.min_bores > 0
             delete!(action_set, MEAction(type=:stop))
         end
-        delete!(action_set, MEAction(type=:mine))
-        delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)
     end
     return MEAction[]
@@ -226,7 +155,7 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
     o = b.sr_belief.o
     s = rand(b.sr_belief.dist)[1]
     if o.stopped
-        return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
+        return MEAction[]
     else
         action_set = Set(POMDPs.actions(m))
         n_initial = length(m.initial_data)
@@ -246,8 +175,6 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
         elseif m.min_bores > 0
             delete!(action_set, MEAction(type=:stop))
         end
-        delete!(action_set, MEAction(type=:mine))
-        delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)
     end
     return MEAction[]
@@ -255,11 +182,9 @@ end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, o::MEObservation)
     if o.stopped
-        return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
+        return MEAction[]
     else
         action_set = Set(POMDPs.actions(m))
-        delete!(action_set, MEAction(type=:mine))
-        delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)
     end
     return MEAction[]

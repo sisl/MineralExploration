@@ -106,7 +106,7 @@ function POMCPOW.BasicPOMCP.extract_belief(p::MEBeliefUpdater, node::POMCPOW.Bel
     for i = 1:size(state.bore_coords)[2]
         a = MEAction(coords=CartesianIndex((state.bore_coords[1, i], state.bore_coords[2, i])))
         ore_qual = state.ore_map[state.bore_coords[1, i], state.bore_coords[2, i], 1]
-        o = MEObservation(ore_qual, state.stopped, state.decided)
+        o = MEObservation(ore_qual, state.stopped)
         push!(acts, a)
         push!(obs, o)
     end
