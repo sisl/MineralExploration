@@ -10,17 +10,17 @@
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 100.0
-    extraction_lcb::Float64 = 0.9
+    extraction_lcb::Float64 = 0.6
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.0
-    gp_weight::Float64 = 0.7
-    mainbody_weight::Float64 = 0.9
+    gp_mean::Float64 = 0.3
+    gp_weight::Float64 = 1.0
+    mainbody_weight::Float64 = 0.7
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
     mainbody_var_max::Float64 = 80.0
-    massive_threshold::Float64 = 0.7
+    massive_threshold::Float64 = 0.5
     rng::AbstractRNG = Random.GLOBAL_RNG
 end
 
