@@ -1,11 +1,3 @@
-try using Pkg catch;Pkg.add("Pkg"); using Pkg end
-if isfile("Project.toml") && isfile("Manifest.toml")
-    Pkg.activate(".")
-end
-
-try using ArgParse catch;Pkg.add("ArgParse"); using ArgParse end
-
-
 using Revise
 
 using POMDPs
@@ -19,45 +11,6 @@ using ProfileView
 using D3Trees
 
 using MineralExploration
-
-# Hyper Parameters
-
-index_from_script = parse(Int64, ARGS[1])
-
-
-function look_up_table(a_list)
-
-    count_list = []
-    combination_list = []
-    count_list = [length(ele) for ele in a_list]
-    combination_list = [push!(combination_list,1:i) for i in count_list][1]
-    total_row = prod(count_list)
-    reference_table = reshape(collect(Iterators.product(combination_list...)),total_row,1)
-    return reference_table
-end
-
-function get_hyperParameters(index_from_script)
-    K_choices = [1, 2, 4]
-    alpha_choices = [0.0, 1.1, 2.2]
-    UCB_choices = [1.2, 1.3, 1.4]
-    leaf_est_choices= [leaf_estimation, 0.0]
-    varible_options = [K_choices,alpha_choices,UCB_choices,leaf_est_choices]
-
-    reference = look_up_table(varible_options)
-    reference_index = reference[index_from_script]
-    return_values = []
-    for i in 1:length(reference_index)
-        push!(return_values,varible_options[i][reference_index[i]])
-
-    end
-
-
-    return return_values
-end
-
-hyper_params = get_hyperParameters(index_from_script)
-
-
 
 N_INITIAL = 0
 MAX_BORES = 10
@@ -78,15 +31,15 @@ solver = POMCPOWSolver(tree_queries=1000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
-                       k_action=hyper_params[1],
-                       alpha_action=hyper_params[2],
+                       k_action=3,
+                       alpha_action=0.25,
                        k_observation=2,
                        alpha_observation=0.1,
-                       criterion=POMCPOW.MaxUCB(hyper_params[3]),
+                       criterion=POMCPOW.MaxUCB(100.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        # estimate_value=0.0
-                       estimate_value=hyper_params[4]
+                       estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
