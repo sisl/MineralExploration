@@ -86,7 +86,7 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservatio
         w = pdf(gp_dist, o_n)
         push!(ws, w)
     end
-    ws .+= 1e-6
+    ws .+= 1e-9
     ws ./= sum(ws)
     return ws
 end
@@ -97,7 +97,7 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
     particles = Tuple{Float64, Array{Float64}}[]
     for (mainbody_var, mainbody_map) in sampled_particles
         if mainbody_var ∈ mainbody_vars
-            mainbody_var += randn()
+            mainbody_var += randn()*2.0
             mainbody_var = clamp(mainbody_var, 0.0, Inf)
             mainbody_map = zeros(Float64, Int(up.m.grid_dim[1]), Int(up.m.grid_dim[2]))
             cov = Distributions.PDiagMat([mainbody_var, mainbody_var])

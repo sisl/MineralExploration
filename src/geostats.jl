@@ -45,7 +45,7 @@ end
 
 Base.rand(d::GeoStatsDistribution, n::Int64=1) = Base.rand(Random.GLOBAL_RNG, d, n)
 
-function Base.rand(rng::AbstractRNG, d::GeoStatsDistribution, coordinates::Matrix{Float64}, n::Int64=1)
+function Base.rand(rng::AbstractRNG, d::GeoStatsDistribution, coordinates::Matrix{Int64}, n::Int64=1)
     simulation_domain = PointSet(coordinates)
     if isempty(d.data.coordinates) # Unconditional simulation
         problem = SimulationProblem(simulation_domain, (:ore => Float64), n)
@@ -57,8 +57,17 @@ function Base.rand(rng::AbstractRNG, d::GeoStatsDistribution, coordinates::Matri
                              )
     else # Conditional simulation
         table = DataFrame(ore=d.data.ore_quals .- d.mean)
+        # domain = PointSet(d.data.coordinates)
+        domain_coords = zeros(Float64, size(d.data.coordinates))
+        for i=1:size(d.data.coordinates)[2]
+            domain_coords[:, i] = d.data.coordinates[:, i]
+        end
+        # domain = PointSet(domain_coords)
         domain = PointSet(d.data.coordinates)
+        # println(domain)
         geodata = georef(table, domain)
+        println(domain[1])
+        println(simulation_domain[1])
         problem = SimulationProblem(geodata, simulation_domain, (:ore), n)
         solver = LUGS(
                             :ore => (
@@ -66,6 +75,7 @@ function Base.rand(rng::AbstractRNG, d::GeoStatsDistribution, coordinates::Matri
                                            )
                              )
     end
+
     solution = GeoStats.solve(problem, solver)
     return solution[:ore][1][1]
 end

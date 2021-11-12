@@ -3,19 +3,19 @@
     reservoir_dims::Tuple{Float64, Float64, Float64} = (2000.0, 2000.0, 30.0) #  lat x lon x thick in meters
     grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
-    min_bores::Int64 = 0 # Minimum number of bores
+    min_bores::Int64 = 1 # Minimum number of bores
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 100.0
+    extraction_cost::Float64 = 150.0
     extraction_lcb::Float64 = 0.6
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
     gp_mean::Float64 = 0.3
-    gp_weight::Float64 = 1.0
+    gp_weight::Float64 = 0.5
     mainbody_weight::Float64 = 0.7
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
@@ -150,9 +150,16 @@ function gen_observation(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rn
     if s.ore_map[1,1,1] != -1.0
         return s.ore_map[a.coords[1], a.coords[2], 1]
     else
-        coords = reshape([float(a.coords[1]), float(a.coords[2])], 2, 1)
-        dist = GeoStatsDistribution(m)
-        return rand(rng, dist, coords)
+        # coords = reshape([float(a.coords[1]), float(a.coords[2])], 2, 1)
+        coords = reshape([a.coords[1], a.coords[2]], 2, 1)
+        dist = GeoStatsDistribution(m) #TODO add coordinates
+        # if length(s.rock_obs) != 0
+        #     dist.data.ore_quals = s.rock_obs.ore_quals
+        #     dist.data.coordinates = s.rock_obs.coordinates
+        # end
+        gp_obs = rand(rng, dist, coords)
+        mb_obs = s.mainbody_map[a.coords[1], a.coords[2], 1]
+        return mb_obs + gp_obs * m.gp_weight
     end
 end
 
@@ -236,8 +243,8 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
     if a.type != :drill
         w = o.ore_quality == nothing ? 1.0 : 0.0
     else
-        mainbody_cov = [s.var 0.0; 0.0 s.var]
-        mainbody_dist = MvNormal(m.mainbody_loc, mainbody_cov)
+        # mainbody_cov = [s.var 0.0; 0.0 s.var]
+        # mainbody_dist = MvNormal(m.mainbody_loc, mainbody_cov)
         o_mainbody = s.mainbody_map[a.coords[1], a.coords[2], 1]
 
         # mainbody_max = 1.0/(2*π*s.var)
