@@ -14,9 +14,9 @@
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.3
-    gp_weight::Float64 = 0.5
-    mainbody_weight::Float64 = 0.7
+    gp_mean::Float64 = 0.1
+    gp_weight::Float64 = 0.2
+    mainbody_weight::Float64 = 0.35
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
     mainbody_var_max::Float64 = 80.0
@@ -141,7 +141,7 @@ end
 Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
 
 function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
-    r = m.strike_reward*sum(s.mainbody_map .>= m.massive_threshold)
+    r = m.strike_reward*sum(s.mainbody_map) # .>= m.massive_threshold)
     r -= m.extraction_cost
     return r
 end

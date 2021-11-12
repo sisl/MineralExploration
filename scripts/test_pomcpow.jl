@@ -12,7 +12,7 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=4)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
@@ -24,15 +24,15 @@ println("Belief Initialized!")
 
 next_action = NextActionSampler()
 
-solver = POMCPOWSolver(tree_queries=1000,
+solver = POMCPOWSolver(tree_queries=10000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
-                       k_action=3,
+                       k_action=2.0,
                        alpha_action=0.25,
-                       k_observation=2,
-                       alpha_observation=0.15,
-                       criterion=POMCPOW.MaxUCB(10.0),
+                       k_observation=2.0,
+                       alpha_observation=0.25,
+                       criterion=POMCPOW.MaxUCB(100.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        # estimate_value=0.0
@@ -53,7 +53,7 @@ for i in 1:N
         println("Trial $i")
     end
     s0 = rand(ds0)
-    s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
+    s_massive = s0.mainbody_map[:,:,1] # .>= m.massive_threshold
     r_massive = sum(s_massive)
     println("Massive Ore: $r_massive")
     h = simulate(hr, m, planner, up, b0, s0)

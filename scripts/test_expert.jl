@@ -12,7 +12,7 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=4)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
@@ -37,7 +37,7 @@ for i in 1:N
         println("Trial $i")
     end
     s0 = rand(ds0)
-    s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
+    s_massive = s0.mainbody_map[:,:,1] # .>= m.massive_threshold
     r_massive = sum(s_massive)
     println("Massive Ore: $r_massive")
     h = simulate(hr, m, policy, up, b0, s0)
@@ -77,7 +77,8 @@ profitable_abandoned = sum(abandoned.*profitable)
 lossy_mined = sum(mined.*lossy)
 lossy_abandoned = sum(abandoned.*lossy)
 
-mined_profit = sum(mined.*(ores .- m.extraction_cost))
+mined_profit = sum(profitable.*mined.*(ores .- m.extraction_cost))
+mined_loss = sum(lossy.*mined.*(ores .- m.extraction_cost))
 available_profit = sum(profitable.*(ores .- m.extraction_cost))
 
 mean_drills = mean(D)
@@ -88,3 +89,4 @@ println("Available Profit: $available_profit, Mined Profit: $mined_profit, P: $(
 println("Profitable: $(sum(profitable)), Mined: $profitable_mined, Abandoned: $profitable_abandoned")
 println("Lossy: $(sum(lossy)), Mined: $lossy_mined, Abandoned: $lossy_abandoned")
 println("Mean Bores: $mean_drills, Mined Bores: $mined_drills, Abandon Bores: $abandoned_drills")
+println(sum(V))
