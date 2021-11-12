@@ -37,7 +37,8 @@ for i in 1:N
         println("Trial $i")
     end
     s0 = rand(ds0)
-    s_massive = s0.mainbody_map[:,:,1] # .>= m.massive_threshold
+    massive_map = s0.mainbody_map .>= m.massive_threshold
+    s_massive = s0.mainbody_map .* massive_map
     r_massive = sum(s_massive)
     println("Massive Ore: $r_massive")
     h = simulate(hr, m, policy, up, b0, s0)

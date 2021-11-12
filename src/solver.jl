@@ -116,9 +116,12 @@ end
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     volumes = Float64[]
     for s in b.particles
-        v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
+        massive_map = s[2] .>= p.m.massive_threshold
+        s_massive = massive_map.*s[2]
+        v = sum(s_massive)
         push!(volumes, v)
     end
+    # volumes = Float64[sum(p[2]) for p in b.particles]
     mean_volume = Statistics.mean(volumes)
     volume_var = Statistics.var(volumes)
     volume_std = sqrt(volume_var)
@@ -132,7 +135,7 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     elseif lcb >= p.m.extraction_cost
         return MEAction(type=:stop)
     else
-        ore_maps = Array{Float64, 3}[s.ore_map for s  in b.particles]
+        ore_maps = Array{Float64, 3}[s[2] for s  in b.particles]
         w = 1.0/length(ore_maps)
         mean = sum(ore_maps)./length(ore_maps)
         var = sum([w*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])

@@ -9,18 +9,18 @@
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 150.0
+    extraction_cost::Float64 = 265.0
     extraction_lcb::Float64 = 0.6
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.1
-    gp_weight::Float64 = 0.2
-    mainbody_weight::Float64 = 0.35
+    gp_mean::Float64 = 0.25
+    gp_weight::Float64 = 1.0
+    mainbody_weight::Float64 = 0.7
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
     mainbody_var_max::Float64 = 80.0
-    massive_threshold::Float64 = 0.5
+    massive_threshold::Float64 = 0.1
     rng::AbstractRNG = Random.GLOBAL_RNG
 end
 
@@ -141,7 +141,9 @@ end
 Base.rand(rng::AbstractRNG, d::MEInitStateDist) = rand(d)
 
 function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
-    r = m.strike_reward*sum(s.mainbody_map) # .>= m.massive_threshold)
+    massive_map = s.mainbody_map .>= m.massive_threshold
+    s_massive = s.mainbody_map .* massive_map
+    r = m.strike_reward*sum(s_massive)
     r -= m.extraction_cost
     return r
 end
