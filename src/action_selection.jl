@@ -1,19 +1,25 @@
-struct GPNextAction
+struct GPNextAction{I}
     l::Float64
     sf::Float64
     sn::Float64
+    init_a::I
 end
 
-gp_action = GPNextAction(1.0, 15.0, 15.0)
+# function GPNextAction(l::Float64, sf::Float64, sn::Float64, init_a::I=nothing) where I
+#     return GPNextAction{I}(l, sf, sn, init_a)
+# end
 
-function kernel(x::Tuple{Bool, CartesianIndex{2}}, y::Tuple{Bool, CartesianIndex{2}}, l::Float64, sf::Float64)
-    d = (x[2][1] - y[2][1])^2 + (x[2][2] - y[2][2])^2
-    return sf*exp(-d/l^2)
+function kernel(x::MEAction, y::MEAction, l::Float64, sf::Float64)
+    if x.type == y.type
+        d = (x.coords[1] - y.coords[1])^2 + (x.coords[2] - y.coords[2])^2
+        return sf*exp(-d/l^2)
+    else
+        return Inf
+    end
 end
 
-function gp_posterior(X::Vector{Tuple{Bool, CartesianIndex{2}}},
-                    x::Vector{Tuple{Bool, CartesianIndex{2}}}, y::Vector{Float64},
-                    ns, l, sf, sn)
+function gp_posterior(X::Vector{MEAction}, x::Vector{MEAction},
+                    y::Vector{Float64}, ns, l, sf, sn)
     m = length(X)
     n = length(x)
     Kxx = zeros(Float64, n, n)
@@ -37,9 +43,8 @@ function gp_posterior(X::Vector{Tuple{Bool, CartesianIndex{2}}},
     return (μ, σ²)
 end
 
-function approx_posterior(X::Vector{Tuple{Bool, CartesianIndex{2}}},
-                    x::Vector{Tuple{Bool, CartesianIndex{2}}}, y::Vector{Float64},
-                    ns, l, sf, sn)
+function approx_posterior(X::Vector{MEAction}, x::Vector{MEAction},
+                        y::Vector{Float64}, ns, l, sf, sn)
     m = length(X)
     n = length(x)
     W = zeros(Float64, m, n)
@@ -67,12 +72,13 @@ function expected_improvement(μ, σ², f)
     return ei
 end
 
-function POMCPOW.next_action(o::GPNextAction, pomdp::GaussianPOMDP, ::Any, h::POMCPOW.BeliefNode)
+function POMCPOW.next_action(o::GPNextAction, pomdp::MineralExplorationPOMDP,
+                            b::MEBelief, h)
     a_idxs = h.tree.tried[h.node]
-    tried_actions = h.tree.a_labels[a_idxs]::Vector{Tuple{Bool, CartesianIndex{2}}}
-    action_values = h.tree.v[a_idxs]
+    tried_actions = h.tree.a_labels[a_idxs]::Vector{MEAction}
+    action_values = h.tree.q[a_idxs]
     action_ns = h.tree.n[a_idxs]
-    actions = POMDPs.actions(pomdp)::Vector{Tuple{Bool, CartesianIndex{2}}}
+    actions = POMDPs.actions(pomdp, b)::Vector{MEAction}
 
     if length(tried_actions) > 0
         # μ, σ² = gp_posterior(actions, tried_actions, action_values, action_ns, o.l, o.sf, o.sn)
@@ -81,6 +87,31 @@ function POMCPOW.next_action(o::GPNextAction, pomdp::GaussianPOMDP, ::Any, h::PO
         ei = expected_improvement(μ, σ², f)
         a_idx = argmax(ei)
         a = actions[a_idx]
+    elseif o.init_a != nothing
+        a = POMCPOW.next_action(o.init_a, pomdp, b, h)
+    else
+        a = rand(actions)
+    end
+    return a
+end
+
+function POMCPOW.next_action(o::GPNextAction, pomdp::MineralExplorationPOMDP,
+                            b::POMCPOW.StateBelief, h)
+    a_idxs = h.tree.tried[h.node]
+    tried_actions = h.tree.a_labels[a_idxs]::Vector{MEAction}
+    action_values = h.tree.q[a_idxs]
+    action_ns = h.tree.n[a_idxs]
+    actions = POMDPs.actions(pomdp, b)::Vector{MEAction}
+
+    if length(tried_actions) > 0
+        # μ, σ² = gp_posterior(actions, tried_actions, action_values, action_ns, o.l, o.sf, o.sn)
+        μ, σ² = approx_posterior(actions, tried_actions, action_values, action_ns, o.l, o.sf, o.sn)
+        f = maximum(action_values)
+        ei = expected_improvement(μ, σ², f)
+        a_idx = argmax(ei)
+        a = actions[a_idx]
+    elseif o.init_a != nothing
+        a = POMCPOW.next_action(o.init_a, pomdp, b, h)
     else
         a = rand(actions)
     end

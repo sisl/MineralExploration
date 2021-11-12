@@ -18,25 +18,36 @@ function belief_scores(m, v)
     s = v[:,:,1]
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
-    # scores = norm_mean .* norm_std
-    scores = norm_mean .+ norm_std
-    # scores .+= 1.0/(size(m)[1] * size(m)[2])
+    scores = norm_mean .* norm_std
+    # scores = norm_mean .+ norm_std
+    scores .+= 1.0/length(scores)
     scores ./= sum(scores)
     return scores
 end
 
 function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMDP,
                             b::MEBelief, h)
+    volumes = Float64[]
+    for s in b.particles
+        massive_map = s[2] .>= pomdp.massive_threshold
+        s_massive = massive_map.*s[2]
+        v = sum(s_massive)
+        push!(volumes, v)
+    end
+    # volumes = Float64[sum(p[2]) for p in b.particles]
+    mean_volume = Statistics.mean(volumes)
+    volume_std = Statistics.std(volumes)
+    lcb = mean_volume - volume_std*pomdp.extraction_lcb
     tried_idxs = h.tree.tried[h.node]
     action_set = POMDPs.actions(pomdp, b)
     if b.stopped
         if length(tried_idxs) == 0
-            return MEAction(type=:mine)
-        else
             return MEAction(type=:abandon)
+        else
+            return MEAction(type=:mine)
         end
     else
-        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0
+        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0 && lcb >= pomdp.extraction_cost
             return MEAction(type=:stop)
         else
             mean, var = summarize(b)
@@ -54,9 +65,9 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
     action_set = POMDPs.actions(pomdp, b)
     if o.stopped
         if length(tried_idxs) == 0
-            return MEAction(type=:mine)
-        else
             return MEAction(type=:abandon)
+        else
+            return MEAction(type=:mine)
         end
     else
         if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0
@@ -67,7 +78,7 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
             for (idx, item) in enumerate(b.sr_belief.dist.items)
                 weight = b.sr_belief.dist.cdf[idx]
                 state = item[1]
-                push!(ore_maps, state.ore_map)
+                push!(ore_maps, state.mainbody_map)
                 push!(weights, weight)
             end
             weights ./= sum(weights)
@@ -169,9 +180,9 @@ function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.
     else
         r_extract = extraction_reward(pomdp, s)
         if r_extract >= 0.0
-            return γ*r_extract*0.8
+            return γ*r_extract*0.9
         else
-            return γ*r_extract*0.2
+            return γ*r_extract*0.1
         end
         # return γ*r_extract
     end

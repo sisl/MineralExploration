@@ -13,11 +13,12 @@ end
 struct MEBeliefUpdater <: POMDPs.Updater
     m::MineralExplorationPOMDP
     n::Int64
+    noise::Float64
     full::Bool
     rng::AbstractRNG
 end
 
-MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, full::Bool=false) =
+MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0, full::Bool=false) =
                                 MEBeliefUpdater(m, n, full, Random.GLOBAL_RNG)
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
@@ -97,7 +98,7 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
     particles = Tuple{Float64, Array{Float64}}[]
     for (mainbody_var, mainbody_map) in sampled_particles
         if mainbody_var ∈ mainbody_vars
-            mainbody_var += randn()*2.0
+            mainbody_var += randn()*up.noise
             mainbody_var = clamp(mainbody_var, 0.0, Inf)
             mainbody_map = zeros(Float64, Int(up.m.grid_dim[1]), Int(up.m.grid_dim[2]))
             cov = Distributions.PDiagMat([mainbody_var, mainbody_var])

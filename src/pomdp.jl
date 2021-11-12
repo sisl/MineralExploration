@@ -10,7 +10,7 @@
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 265.0
-    extraction_lcb::Float64 = 0.6
+    extraction_lcb::Float64 = 0.5
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)

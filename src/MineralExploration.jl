@@ -46,4 +46,8 @@ export
         leaf_estimation
 include("solver.jl")
 
+export
+        GPNextAction
+include("action_selection.jl")
+
 end
