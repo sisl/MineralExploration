@@ -9,13 +9,13 @@
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 265.0
+    extraction_cost::Float64 = 250.0
     extraction_lcb::Float64 = 0.5
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.25
-    gp_weight::Float64 = 1.0
+    gp_mean::Float64 = 0.2
+    gp_weight::Float64 = 0.5
     mainbody_weight::Float64 = 0.7
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
@@ -132,7 +132,7 @@ function Base.rand(d::MEInitStateDist)
     lode_map = repeat(lode_map, outer=(1, 1, 1))
 
     ore_map = lode_map + gp_ore_map
-    clamp!(ore_map, 0.0, Inf)
+    # clamp!(ore_map, 0.0, Inf)
     # ore_map = gp_ore_map
     MEState(ore_map, mainbody_var, lode_map,
             RockObservations(), false, false)

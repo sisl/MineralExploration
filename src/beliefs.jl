@@ -14,12 +14,13 @@ struct MEBeliefUpdater <: POMDPs.Updater
     m::MineralExplorationPOMDP
     n::Int64
     noise::Float64
+    updates::Int64
     full::Bool
     rng::AbstractRNG
 end
 
-MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0, full::Bool=false) =
-                                MEBeliefUpdater(m, n, noise, full, Random.GLOBAL_RNG)
+MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0, updates::Int64=10, full::Bool=false) =
+                                MEBeliefUpdater(m, n, noise, updates, full, Random.GLOBAL_RNG)
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     x_dim = d.gp_distribution.grid_dims[1]
@@ -68,7 +69,7 @@ function calc_K(b::MEBelief, rock_obs::RockObservations)
     return K
 end
 
-function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
+function reweight(up::MEBeliefUpdater, particles::Vector, b::MEBelief, a::MEAction, o::MEObservation)
     ws = Float64[]
     bore_coords = b.rock_obs.coordinates
     n = size(bore_coords)[2]
@@ -78,7 +79,7 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservatio
     K = calc_K(b, RockObservations(ore_quals=ore_obs, coordinates=bore_coords))
     mu = zeros(Float64, n+1) .+ up.m.gp_mean
     gp_dist = MvNormal(mu, K)
-    for (mb_var, mb_map) in b.particles
+    for (mb_var, mb_map) in particles
         o_n = zeros(Float64, n+1)
         for i = 1:n+1
             o_mainbody = mb_map[bore_coords[1, i], bore_coords[2, i]]
@@ -92,13 +93,13 @@ function reweight(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservatio
     return ws
 end
 
-function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAction, o::MEObservation)
-    sampled_particles = sample(up.rng, b.particles, StatsBase.Weights(wp), up.n, replace=true)
+function resample(up::MEBeliefUpdater, particles::Vector, b::MEBelief, wp::Vector{Float64}, a::MEAction, o::MEObservation)
+    sampled_particles = sample(up.rng, particles, StatsBase.Weights(wp), up.n, replace=true)
     mainbody_vars = Float64[]
     particles = Tuple{Float64, Array{Float64}}[]
     for (mainbody_var, mainbody_map) in sampled_particles
         if mainbody_var ∈ mainbody_vars
-            mainbody_var += randn()*up.noise
+            mainbody_var += 2.0*(rand() - 0.5)*up.noise
             mainbody_var = clamp(mainbody_var, 0.0, Inf)
             mainbody_map = zeros(Float64, Int(up.m.grid_dim[1]), Int(up.m.grid_dim[2]))
             cov = Distributions.PDiagMat([mainbody_var, mainbody_var])
@@ -120,8 +121,14 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
 end
 
 function update_particles(up::MEBeliefUpdater, b::MEBelief, a::MEAction, o::MEObservation)
-    wp = reweight(up, b, a, o)
-    pp = resample(up, b, wp, a, o)
+    pp = b.particles
+    pp_new = nothing
+    for i = 1:up.updates
+        wp = reweight(up, pp, b, a, o)
+        pp = resample(up, pp, b, wp, a, o)
+        pp_new = pp
+    end
+    return pp_new
 end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
@@ -168,7 +175,7 @@ function Base.rand(rng::AbstractRNG, b::MEBelief)
         gp_ore_map = Base.rand(rng, b.geostats)
         gp_ore_map .*= b.geostats.gp_weight
         ore_map = lode_map + gp_ore_map
-        clamp!(ore_map, 0.0, Inf)
+        # clamp!(ore_map, 0.0, Inf)
     else
         ore_map = zero(lode_map) .- 1.0
     end
