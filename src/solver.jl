@@ -27,17 +27,6 @@ end
 
 function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMDP,
                             b::MEBelief, h)
-    volumes = Float64[]
-    for s in b.particles
-        massive_map = s[2] .>= pomdp.massive_threshold
-        s_massive = massive_map.*s[2]
-        v = sum(s_massive)
-        push!(volumes, v)
-    end
-    # volumes = Float64[sum(p[2]) for p in b.particles]
-    mean_volume = Statistics.mean(volumes)
-    volume_std = Statistics.std(volumes)
-    lcb = mean_volume - volume_std*pomdp.extraction_lcb
     tried_idxs = h.tree.tried[h.node]
     action_set = POMDPs.actions(pomdp, b)
     if b.stopped
@@ -47,7 +36,20 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
             return MEAction(type=:mine)
         end
     else
-        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0 && lcb >= pomdp.extraction_cost
+        volumes = Float64[]
+        for s in b.particles
+            massive_map = s[2] .>= pomdp.massive_threshold
+            s_massive = massive_map.*s[2]
+            v = sum(s_massive)
+            push!(volumes, v)
+        end
+        # volumes = Float64[sum(p[2]) for p in b.particles]
+        mean_volume = Statistics.mean(volumes)
+        volume_std = Statistics.std(volumes)
+        lcb = mean_volume - volume_std*pomdp.extraction_lcb
+        ucb = mean_volume + volume_std*1.0 #pomdp.extraction_ucb
+        stop_bound = lcb >= pomdp.extraction_cost || ucb <= pomdp.extraction_cost
+        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0 && stop_bound
             return MEAction(type=:stop)
         else
             mean, var = summarize(b)

@@ -19,7 +19,7 @@ struct MEBeliefUpdater <: POMDPs.Updater
 end
 
 MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0, full::Bool=false) =
-                                MEBeliefUpdater(m, n, full, Random.GLOBAL_RNG)
+                                MEBeliefUpdater(m, n, noise, full, Random.GLOBAL_RNG)
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     x_dim = d.gp_distribution.grid_dims[1]
