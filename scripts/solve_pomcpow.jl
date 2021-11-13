@@ -15,31 +15,32 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
-# s0 = rand(ds0)
+s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 100)
+up = MEBeliefUpdater(m, 1000, 5.0)
 println("Initializing belief...")
-# b0 = POMDPs.initialize_belief(up, ds0)
+b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
-next_action = NextActionSampler() #b0, up)
 
+next_action = NextActionSampler() #b0, up)
+# next_action = GPNextAction(5.0, 25.0, 25.0, NextActionSampler())
 solver = POMCPOWSolver(tree_queries=1000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
-                       k_action=3,
+                       k_action=2.0,
                        alpha_action=0.25,
-                       k_observation=2,
+                       k_observation=2.0,
                        alpha_observation=0.1,
-                       criterion=POMCPOW.MaxUCB(100.0),
+                       criterion=POMCPOW.MaxUCB(20.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
-                       # estimate_value=0.0
-                       estimate_value=leaf_estimation
+                       estimate_value=0.0
+                       # estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
@@ -50,34 +51,41 @@ planner = POMDPs.solve(solver, m)
 # MineralExploration.std(volumes)
 
 # println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, B[8], tree_in_info=true)
+# a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
 # tree = info[:tree]
 # inbrowser(D3Tree(tree, init_expand=1), "firefox")
-
+# STOP
 println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
 # savefig(fig, "./data/example/ore_vals.png")
 display(fig)
 
-s_massive = s0.ore_map[:,:,1] .>= 0.7
+massive_map = s0.mainbody_map .>= m.massive_threshold
+s_massive = s0.mainbody_map .* massive_map
 r_massive = sum(s_massive)
 println("Massive ore: $r_massive")
 println("MB Variance: $(s0.var)")
 
-fig = heatmap(s_massive, title="Massive Ore Deposits: $r_massive", fill=true, clims=(0.0, 1.0))
+fig = heatmap(s_massive[:,:,1], title="Massive Ore Deposits: $r_massive", fill=true, clims=(0.0, 1.0))
 # savefig(fig, "./data/example/massive.png")
 display(fig)
 
-fig = plot(b0)
-display(fig)
-
-vars = [p.var for p in b0.particles]
+# fig = plot(b0)
+# display(fig)
+#
+vars = [p[1] for p in b0.particles]
 mean_vars = mean(vars)
 std_vars = std(vars)
 println("Vars: $mean_vars ± $std_vars")
+#
+vols = [sum((p[2] .>= m.massive_threshold).*p[2]) for p in b0.particles]
+mean_vols = mean(vols)
+std_vols = std(vols)
+println("Vols: $mean_vols ± $std_vols")
 # fig = histogram(vars, bins=10 )
 # display(fig)
-
+# fig = histogram(vols, bins=10 )
+# display(fig)
 b_new = nothing
 a_new = nothing
 discounted_return = 0.0
@@ -89,6 +97,11 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     global a_new
     local fig
     local volumes
+    local mb_var
+
+    local vars
+    local mean_vars
+    local std_vars
     a_new = a
     b_new = bp
     @show t
@@ -96,8 +109,8 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     @show r
     @show sp.stopped
     @show bp.stopped
-
-    volumes = Float64[sum(p.ore_map[:,:,1] .>= m.massive_threshold) for p in bp.particles]
+    volumes = [sum((p[2] .>= m.massive_threshold).*p[2]) for p in bp.particles]
+    # volumes = Float64[sum(p[2][:,:,1] .>= m.massive_threshold) for p in bp.particles]
     mean_volume = mean(volumes)
     std_volume = std(volumes)
     volume_lcb = mean_volume - 1.0*std_volume
@@ -111,11 +124,10 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     # savefig(fig, str)
     display(fig)
 
-    vars = [p.var for p in bp.particles]
+    vars = [p[1] for p in bp.particles]
     mean_vars = mean(vars)
     std_vars = std(vars)
-    @show mean_vars
-    @show std_vars
+    println("Vars: $mean_vars ± $std_vars")
     # fig = histogram(vars, bins=10)
     # display(fig)
     discounted_return += POMDPs.discount(m)^(t - 1)*r

@@ -19,7 +19,8 @@ function belief_scores(m, v)
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
     scores = norm_mean .* norm_std
-    scores .+= 1.0/(size(m)[1] * size(m)[2])
+    # scores = norm_mean .+ norm_std
+    scores .+= 1.0/length(scores)
     scores ./= sum(scores)
     return scores
 end
@@ -30,12 +31,25 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
     action_set = POMDPs.actions(pomdp, b)
     if b.stopped
         if length(tried_idxs) == 0
-            return MEAction(type=:mine)
-        else
             return MEAction(type=:abandon)
+        else
+            return MEAction(type=:mine)
         end
     else
-        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0
+        volumes = Float64[]
+        for s in b.particles
+            massive_map = s[2] .>= pomdp.massive_threshold
+            s_massive = massive_map.*s[2]
+            v = sum(s_massive)
+            push!(volumes, v)
+        end
+        # volumes = Float64[sum(p[2]) for p in b.particles]
+        mean_volume = Statistics.mean(volumes)
+        volume_std = Statistics.std(volumes)
+        lcb = mean_volume - volume_std*pomdp.extraction_lcb
+        ucb = mean_volume + volume_std*1.0 #pomdp.extraction_ucb
+        stop_bound = lcb >= pomdp.extraction_cost || ucb <= pomdp.extraction_cost
+        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0 && stop_bound
             return MEAction(type=:stop)
         else
             mean, var = summarize(b)
@@ -53,9 +67,9 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
     action_set = POMDPs.actions(pomdp, b)
     if o.stopped
         if length(tried_idxs) == 0
-            return MEAction(type=:mine)
-        else
             return MEAction(type=:abandon)
+        else
+            return MEAction(type=:mine)
         end
     else
         if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0
@@ -66,7 +80,7 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
             for (idx, item) in enumerate(b.sr_belief.dist.items)
                 weight = b.sr_belief.dist.cdf[idx]
                 state = item[1]
-                push!(ore_maps, state.ore_map)
+                push!(ore_maps, state.mainbody_map)
                 push!(weights, weight)
             end
             weights ./= sum(weights)
@@ -115,9 +129,12 @@ end
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     volumes = Float64[]
     for s in b.particles
-        v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
+        massive_map = s[2] .>= p.m.massive_threshold
+        s_massive = massive_map.*s[2]
+        v = sum(s_massive)
         push!(volumes, v)
     end
+    # volumes = Float64[sum(p[2]) for p in b.particles]
     mean_volume = Statistics.mean(volumes)
     volume_var = Statistics.var(volumes)
     volume_std = sqrt(volume_var)
@@ -131,7 +148,7 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     elseif lcb >= p.m.extraction_cost
         return MEAction(type=:stop)
     else
-        ore_maps = Array{Float64, 3}[s.ore_map for s  in b.particles]
+        ore_maps = Array{Float64, 3}[s[2] for s  in b.particles]
         w = 1.0/length(ore_maps)
         mean = sum(ore_maps)./length(ore_maps)
         var = sum([w*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])
@@ -141,7 +158,7 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     end
 end
 
-mutable struct RandomSolver <: Solver
+mutable struct RandomSolver <: POMDPs.Solver
     rng::AbstractRNG
 end
 
@@ -149,20 +166,26 @@ RandomSolver(;rng=Random.GLOBAL_RNG) = RandomSolver(rng)
 POMDPs.solve(solver::RandomSolver, problem::Union{POMDP,MDP}) = POMCPOW.RandomPolicy(solver.rng, problem, BeliefUpdaters.PreviousObservationUpdater())
 
 function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.BeliefNode, ::Any)
+    if s.stopped
+        γ = POMDPs.discount(pomdp)
+    else
+        if isempty(s.rock_obs.ore_quals)
+            bores = 0
+        else
+            bores = length(s.rock_obs.ore_quals)
+        end
+        t = pomdp.max_bores - bores + 1
+        γ = POMDPs.discount(pomdp)^t
+    end
     if s.decided
         return 0.0
     else
-        γ = POMDPs.discount(pomdp)
-        if !s.stopped
-            γ = γ^2
-        end
         r_extract = extraction_reward(pomdp, s)
-            if r_extract >= 0.0
-                return γ*r_extract*0.8
-            else
-                return γ*r_extract*0.2
-            end
-        # return γ*max(r_extract, 0.0)
+        if r_extract >= 0.0
+            return γ*r_extract*0.9
+        else
+            return γ*r_extract*0.1
+        end
         # return γ*r_extract
     end
 end

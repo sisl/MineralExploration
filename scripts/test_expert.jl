@@ -17,7 +17,7 @@ initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 
-up = MEBeliefUpdater(m, 100)
+up = MEBeliefUpdater(m, 1000)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -37,8 +37,10 @@ for i in 1:N
         println("Trial $i")
     end
     s0 = rand(ds0)
-    s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
+    massive_map = s0.mainbody_map .>= m.massive_threshold
+    s_massive = s0.mainbody_map .* massive_map
     r_massive = sum(s_massive)
+    println("Massive Ore: $r_massive")
     h = simulate(hr, m, policy, up, b0, s0)
     v = 0.0
     d = 0
@@ -50,6 +52,10 @@ for i in 1:N
     end
     push!(D, d)
     push!(A, h[end][:a].type)
+
+    println("Steps: $(length(h))")
+    println("Decision: $(h[end][:a].type)")
+    println("======================")
     push!(ores, r_massive)
     push!(V, v)
 end
@@ -72,7 +78,8 @@ profitable_abandoned = sum(abandoned.*profitable)
 lossy_mined = sum(mined.*lossy)
 lossy_abandoned = sum(abandoned.*lossy)
 
-mined_profit = sum(mined.*(ores .- m.extraction_cost))
+mined_profit = sum(profitable.*mined.*(ores .- m.extraction_cost))
+mined_loss = sum(lossy.*mined.*(ores .- m.extraction_cost))
 available_profit = sum(profitable.*(ores .- m.extraction_cost))
 
 mean_drills = mean(D)
@@ -83,3 +90,4 @@ println("Available Profit: $available_profit, Mined Profit: $mined_profit, P: $(
 println("Profitable: $(sum(profitable)), Mined: $profitable_mined, Abandoned: $profitable_abandoned")
 println("Lossy: $(sum(lossy)), Mined: $lossy_mined, Abandoned: $lossy_abandoned")
 println("Mean Bores: $mean_drills, Mined Bores: $mined_drills, Abandon Bores: $abandoned_drills")
+println(sum(V))

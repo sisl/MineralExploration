@@ -1,14 +1,15 @@
-struct MEState
-    ore_map::Array{Float64}  # 3D array of ore_quality values for each grid-cell
-    var::Float64 #  Diagonal variance of main ore-body generator
-    bore_coords::Union{Nothing, Matrix{Int64}} # 2D grid cell location of each well
-    stopped::Bool # Whether or not STOP action has been taken
-    decided::Bool # Whether or not the extraction decision has been made
-end
-
 @with_kw mutable struct RockObservations
     ore_quals::Vector{Float64} = Vector{Float64}()
     coordinates::Matrix{Int64} = zeros(Int64, 2, 0)
+end
+
+struct MEState
+    ore_map::Array{Float64}  # 3D array of ore_quality values for each grid-cell
+    var::Float64 #  Diagonal variance of main ore-body generator
+    mainbody_map::Array{Float64}
+    rock_obs::RockObservations
+    stopped::Bool # Whether or not STOP action has been taken
+    decided::Bool # Whether or not the extraction decision has been made
 end
 
 function Base.length(obs::RockObservations)
@@ -27,9 +28,12 @@ end
 end
 
 # struct MEBelief
-#     bore_coords::Union{Nothing, Matrix{Int64}}
-#     stopped::Bool
-#     particles::Vector{MEState}
+#     particles::Vector{Tuple{Float64, Array{Float64, 3}}} # Vector of vars & lode maps
+#     rock_obs::RockObservations
 #     acts::Vector{MEAction}
 #     obs::Vector{MEObservation}
+#     stopped::Bool
+#     decided::Bool
+#     full::Bool # Whether or not to generate full state maps # TODO Implement this
+#     gp_dist::GeoStatsDistribution
 # end
