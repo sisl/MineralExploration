@@ -113,6 +113,7 @@ function resample(up::MEBeliefUpdater, b::MEBelief, wp::Vector{Float64}, a::MEAc
             max_lode = maximum(mainbody_map)
             mainbody_map ./= max_lode
             mainbody_map .*= up.m.mainbody_weight
+            mainbody_map = repeat(mainbody_map, outer=(1, 1, 1))
         end
         push!(mainbody_vars, mainbody_var)
         push!(particles, (mainbody_var, mainbody_map))
@@ -177,16 +178,16 @@ end
 Base.rand(b::MEBelief) = rand(Random.GLOBAL_RNG, b)
 
 function summarize(b::MEBelief)
-    (x, y, z) = size(b.particles[1].ore_map)
+    (x, y, z) = size(b.particles[1][2])
     μ = zeros(Float64, x, y, z)
     w = 1.0/length(b.particles)
     for (i, p) in enumerate(b.particles)
-        ore_map = convert(Array{Float64, 3}, p.ore_map)
+        ore_map = p[2]
         μ .+= ore_map .* w
     end
     σ² = zeros(Float64, x, y, z)
     for (i, p) in enumerate(b.particles)
-        ore_map = convert(Array{Float64, 3}, p.ore_map)
+        ore_map = p[2]
         σ² .+= w*(ore_map - μ).^2
     end
     return (μ, σ²)
@@ -198,10 +199,10 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
     else
         action_set = Set(POMDPs.actions(m))
         n_initial = length(m.initial_data)
-        if b.bore_coords != nothing
-            n_obs = size(b.bore_coords)[2] - n_initial
+        if length(b.rock_obs) > 0
+            n_obs = length(b.rock_obs) - n_initial
             for i=1:n_obs
-                coord = b.bore_coords[:, i + n_initial]
+                coord = b.rock_obs.coordinates[:, i + n_initial]
                 x = Int64(coord[1])
                 y = Int64(coord[2])
                 keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
@@ -275,9 +276,9 @@ function Plots.plot(b::MEBelief, t=nothing)
     end
     fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
     fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2))
-    if b.bore_coords != nothing
-        x = b.bore_coords[2, :]
-        y = b.bore_coords[1, :]
+    if length(b.rock_obs) > 0
+        x = b.rock_obs.coordinates[2, :]
+        y = b.rock_obs.coordinates[1, :]
         plot!(fig1, x, y, seriestype = :scatter)
         plot!(fig2, x, y, seriestype = :scatter)
     end

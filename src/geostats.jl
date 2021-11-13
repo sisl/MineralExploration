@@ -86,11 +86,15 @@ function calc_covs(d::GeoStatsDistribution, problem)
     fact = varparams.factorization
     if isempty(d.lu_params.dlocs)
         d₂  = zero(Float64)
-        L₂₂ = fact(Symmetric(d.lu_params.C₂₂)).L
+        K = Symmetric(d.lu_params.C₂₂)
+        K += d.variogram.nugget.*Matrix(I, size(K))
+        L₂₂ = fact(K).L
     else
         B₁₂ = d.lu_params.A₂₁'
         d₂ = d.lu_params.A₂₁ * (d.lu_params.L₁₁ \ z₁)
-        L₂₂ = fact(Symmetric(d.lu_params.C₂₂ - d.lu_params.A₂₁*B₁₂)).L
+        K = Symmetric(d.lu_params.C₂₂ - d.lu_params.A₂₁*B₁₂)
+        K += d.variogram.nugget.*Matrix(I, size(K))
+        L₂₂ = fact(K).L
     end
     return (d₂, z₁, L₂₂)
 end
@@ -158,13 +162,18 @@ function Base.rand(rng::AbstractRNG, d::GeoStatsDistribution, n::Int64=1)
     conames = (:ore,)
     d₂, z₁, L₂₂ = calc_covs(d, problem)
     μ = 0.0
+    # println("FOO")
+    # println(size(d₂))
+    # println(size(z₁))
+    # println(size(L₂₂))
+    # println("BAR")
     coparams = [(z₁, d₂, L₂₂, μ, d.lu_params.dlocs, d.lu_params.slocs),]
     preproc = Dict()
     push!(preproc, conames => coparams)
     solution = solve_nopreproc(problem, d.lu_params.lugs, preproc)
     ore_maps = Array{Float64, 3}[]
     for s in solution[:ore]
-        ore_2D = reshape(s, d.grid_dims) .+ d.mean
+        ore_2D = reshape(s[1:prod(d.grid_dims)], d.grid_dims) .+ d.mean
         ore_map = repeat(ore_2D, outer=(1, 1, 1))
         push!(ore_maps, ore_map)
     end

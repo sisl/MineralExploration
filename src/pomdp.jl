@@ -184,7 +184,7 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
     else
         error("Invalid Action! Action: $a, Stopped: $stopped, Decided: $decided")
     end
-    sp = MEState(s.ore_map, s.var, coords_p, stopped_p, decided_p)
+    sp = MEState(s.ore_map, s.var, s.mainbody_map, coords_p, stopped_p, decided_p)
     return (sp=sp, o=obs, r=r)
 end
 

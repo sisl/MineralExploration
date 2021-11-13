@@ -21,25 +21,26 @@ initialize_data!(m, N_INITIAL)
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 1000)
+up = MEBeliefUpdater(m, 100)
 println("Initializing belief...")
-# b0 = POMDPs.initialize_belief(up, ds0)
+b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
+# STOP
 
 next_action = NextActionSampler() #b0, up)
-solver = POMCPOWSolver(tree_queries=100000,
+solver = POMCPOWSolver(tree_queries=10,
                        check_repeat_obs=true,
                        check_repeat_act=true,
-                       next_action=next_action,
+                       # next_action=next_action,
                        k_action=3,
                        alpha_action=0.25,
                        k_observation=2,
                        alpha_observation=0.1,
                        criterion=POMCPOW.MaxUCB(100.0),
-                       # final_criterion=POMCPOW.MaxQ(),
-                       final_criterion=POMCPOW.MaxTries(),
-                       # estimate_value=0.0
-                       estimate_value=leaf_estimation
+                       final_criterion=POMCPOW.MaxQ(),
+                       # final_criterion=POMCPOW.MaxTries(),
+                       estimate_value=0.0
+                       # estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
@@ -50,7 +51,7 @@ planner = POMDPs.solve(solver, m)
 # MineralExploration.std(volumes)
 
 # println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, B[8], tree_in_info=true)
+@time a, info = POMCPOW.action_info(planner, b0, tree_in_info=true);
 # tree = info[:tree]
 # inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
@@ -71,7 +72,7 @@ display(fig)
 fig = plot(b0)
 display(fig)
 
-mb_var = b0.particles[1].var
+mb_var = b0.particles[1][1]
 @show mb_var
 # vars = [p.var for p in b0.particles]
 # mean_vars = mean(vars)
@@ -100,7 +101,7 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     @show sp.stopped
     @show bp.stopped
 
-    volumes = Float64[sum(p.ore_map[:,:,1] .>= m.massive_threshold) for p in bp.particles]
+    volumes = Float64[sum(p[2][:,:,1] .>= m.massive_threshold) for p in bp.particles]
     mean_volume = mean(volumes)
     std_volume = std(volumes)
     volume_lcb = mean_volume - 1.0*std_volume
@@ -114,7 +115,7 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     # savefig(fig, str)
     display(fig)
 
-    mb_var = bp.particles[1].var
+    mb_var = bp.particles[1][1]
     @show mb_var
     # fig = histogram(vars, bins=10)
     # display(fig)
