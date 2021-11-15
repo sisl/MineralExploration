@@ -46,8 +46,8 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
         mean_volume = Statistics.mean(volumes)
         volume_std = Statistics.std(volumes)
         lcb = mean_volume - volume_std*pomdp.extraction_lcb
-        ucb = mean_volume + volume_std*1.0 #pomdp.extraction_ucb
-        stop_bound = lcb >= pomdp.extraction_cost # || ucb <= pomdp.extraction_cost
+        ucb = mean_volume + volume_std*pomdp.extraction_ucb
+        stop_bound = lcb >= pomdp.extraction_cost || ucb <= pomdp.extraction_cost
         if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0 && stop_bound
             return MEAction(type=:stop)
         else
@@ -136,14 +136,16 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     mean_volume = Statistics.mean(volumes)
     volume_var = Statistics.var(volumes)
     volume_std = sqrt(volume_var)
-    lcb = mean_volume - volume_std
+    lcb = mean_volume - volume_std*pomdp.extraction_lcb
+    ucb = mean_volume + volume_std*pomdp.extraction_ucb
+    stop_bound = lcb >= pomdp.extraction_cost || ucb <= pomdp.extraction_cost
     if b.stopped
         if lcb >= p.m.extraction_cost
             return MEAction(type=:mine)
         else
             return MEAction(type=:abandon)
         end
-    elseif lcb >= p.m.extraction_cost
+    elseif stop_bound
         return MEAction(type=:stop)
     else
         ore_maps = Array{Float64, 3}[s.ore_map for s  in b.particles]

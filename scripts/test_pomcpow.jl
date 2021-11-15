@@ -17,7 +17,9 @@ initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 
-up = MEBeliefUpdater(m, 1000)
+g = GeoStatsDistribution(m)
+
+up = MEBeliefUpdater(m, g, 1000, 2.0, 1)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -32,7 +34,7 @@ solver = POMCPOWSolver(tree_queries=1000,
                        alpha_action=0.25,
                        k_observation=2.0,
                        alpha_observation=0.25,
-                       criterion=POMCPOW.MaxUCB(100.0),
+                       criterion=POMCPOW.MaxUCB(20.0),
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        # estimate_value=0.0
@@ -53,8 +55,7 @@ for i in 1:N
         println("Trial $i")
     end
     s0 = rand(ds0)
-    massive_map = s0.mainbody_map .>= m.massive_threshold
-    s_massive = s0.mainbody_map .* massive_map
+    s_massive = s0.ore_map .>= m.massive_threshold
     r_massive = sum(s_massive)
     println("Massive Ore: $r_massive")
     h = simulate(hr, m, planner, up, b0, s0)

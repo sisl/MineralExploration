@@ -34,6 +34,10 @@ export
         kriging
 include("gslib.jl")
 
+export
+        MainbodyGen,
+        SingleFixedNode
+include("mainbody.jl")
 
 export
         MineralExplorationPOMDP,

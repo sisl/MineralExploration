@@ -9,17 +9,15 @@
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 100.0
+    extraction_cost::Float64 = 150.0
     extraction_lcb::Float64 = 0.5
+    extraction_ucb::Float64 = 2.0
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.3
+    gp_mean::Float64 = 0.35
     gp_weight::Float64 = 1.0
-    mainbody_weight::Float64 = 0.45
-    mainbody_loc::Vector{Float64} = [25.0, 25.0]
-    mainbody_var_min::Float64 = 40.0
-    mainbody_var_max::Float64 = 80.0
+    mainbody_gen::MainbodyGen
     massive_threshold::Float64 = 0.7
     rng::AbstractRNG = Random.GLOBAL_RNG
 end
@@ -98,18 +96,14 @@ POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.decided
 struct MEInitStateDist
     gp_distribution::GeoDist
     gp_weight::Float64
-    mainbody_weight::Float64
-    mainbody_loc::Vector{Float64}
-    mainbody_var_max::Float64
-    mainbody_var_min::Float64
+    mainbody_gen::MainbodyGen
     massive_thresh::Float64
     rng::AbstractRNG
 end
 
 function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP, geodist_type::Type=GeoStatsDistribution)
     gp_dist = geodist_type(m)
-    MEInitStateDist(gp_dist, m.gp_weight, m.mainbody_weight,
-                    m.mainbody_loc, m.mainbody_var_max, m.mainbody_var_min,
+    MEInitStateDist(gp_dist, m.gp_weight, m.mainbody_gen,
                     m.massive_threshold, m.rng)
 end
 
