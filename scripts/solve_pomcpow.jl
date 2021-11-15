@@ -19,11 +19,11 @@ m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
-s0 = rand(ds0)
+# s0 = rand(ds0)
 
 g = GeoStatsDistribution(m)
 
-up = MEBeliefUpdater(m, g, 100, 2.0, 1)
+up = MEBeliefUpdater(m, g, 1000, 2.0, 1)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")

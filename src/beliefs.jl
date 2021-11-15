@@ -79,7 +79,6 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
     particles = MEState[]
     x = nothing
     ore_quals = deepcopy(rock_obs.ore_quals)
-    test = 1
     for s in sampled_particles
         mainbody_var = s.var
         mainbody_map = s.mainbody_map
@@ -110,21 +109,8 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
         geostats.data.ore_quals = n_ore_quals
         # gslib_dist.data.ore_quals = n_ore_quals
         gp_ore_map = Base.rand(up.rng, geostats)
-        # gp_ore_map .*=
-        # mainbody_map_3d = repeat(mainbody_map, outer=(1, 1, 1)) # TODO
         ore_map = gp_ore_map.*up.m.gp_weight .+ mainbody_map
-        # println(mean(gp_ore_map))
-        println("$test")
-        test += 1
-        # display(heatmap(gp_ore_map[:,:,1]))
-        ore_quals_p = s.rock_obs.ore_quals
-        coordinates_p = s.rock_obs.coordinates
-        if o.ore_quality != nothing
-            push!(ore_quals_p, o.ore_quality)
-            coordinates_p = hcat(coordinates_p, [a.coords[1], a.coords[2]])
-        end
-        rock_obs_p = RockObservations(ore_quals_p, coordinates_p)
-        # rock_obs_p = deepcopy(rock_obs)
+        rock_obs_p = RockObservations(rock_obs.ore_quals, rock_obs.coordinates)
         sp = MEState(ore_map, mainbody_var, mainbody_map, rock_obs_p,
                     o.stopped, o.decided)
         push!(mainbody_vars, mainbody_var)
@@ -148,7 +134,11 @@ end
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                             a::MEAction, o::MEObservation)
     if a.type != :drill
-        bp_particles = MEState[p for p in b.particles]
+        bp_particles = MEState[] # MEState[p for p in b.particles]
+        for p in b.particles
+            s = MEState(p.ore_map, p.var, p.mainbody_map, p.rock_obs, o.stopped, o.decided)
+            push!(bp_particles, s)
+        end
         bp_rock = RockObservations(ore_quals=deepcopy(b.rock_obs.ore_quals),
                                 coordinates=deepcopy(b.rock_obs.coordinates))
         # TODO Swap GeoStatsDistribtuion with genera
@@ -156,15 +146,14 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                                         b.geostats.domain, b.geostats.mean,
                                         b.geostats.variogram, b.geostats.lu_params)
     else
-        bp_rock = RockObservations(ore_quals=deepcopy(b.rock_obs.ore_quals),
-                                coordinates=deepcopy(b.rock_obs.coordinates))
+        bp_rock = deepcopy(b.rock_obs)
         bp_rock.coordinates = hcat(bp_rock.coordinates, [a.coords[1], a.coords[2]])
         push!(bp_rock.ore_quals, o.ore_quality)
-        bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, bp_rock,
+        bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, deepcopy(bp_rock),
                                         b.geostats.domain, b.geostats.mean,
                                         b.geostats.variogram, b.geostats.lu_params)
         update!(bp_geostats, bp_rock)
-        bp_particles = update_particles(up, b.particles, bp_geostats, deepcopy(bp_rock), a, o)
+        bp_particles = update_particles(up, b.particles, bp_geostats, bp_rock, a, o)
     end
 
     bp_acts = MEAction[]
@@ -299,7 +288,7 @@ function Plots.plot(b::MEBelief, t=nothing)
         mean_title = "Belief Mean t=$t"
         std_title = "Belief StdDev t=$t"
     end
-    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
+    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true) #, clims=(0.0, 1.0)) , legend=:none)
     fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2))
     if !isempty(b.rock_obs.ore_quals)
         x = b.rock_obs.coordinates[2, :]

@@ -9,13 +9,13 @@
     grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
-    extraction_cost::Float64 = 250.0
+    extraction_cost::Float64 = 100.0
     extraction_lcb::Float64 = 0.5
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
     gp_mean::Float64 = 0.3
-    gp_weight::Float64 = 1.25
+    gp_weight::Float64 = 1.0
     mainbody_weight::Float64 = 0.45
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
     mainbody_var_min::Float64 = 40.0
@@ -198,7 +198,7 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
         decided_p = false
         obs = MEObservation(ore_obs, stopped_p, false)
     else
-        error("Invalid Action! Action: $a, Stopped: $stopped, Decided: $decided")
+        error("Invalid Action! Action: $(a.type), Stopped: $stopped, Decided: $decided")
     end
     sp = MEState(s.ore_map, s.var, s.mainbody_map, rock_obs_p, stopped_p, decided_p)
     return (sp=sp, o=obs, r=r)

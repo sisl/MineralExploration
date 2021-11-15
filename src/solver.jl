@@ -47,7 +47,7 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
         volume_std = Statistics.std(volumes)
         lcb = mean_volume - volume_std*pomdp.extraction_lcb
         ucb = mean_volume + volume_std*1.0 #pomdp.extraction_ucb
-        stop_bound = lcb >= pomdp.extraction_cost || ucb <= pomdp.extraction_cost
+        stop_bound = lcb >= pomdp.extraction_cost # || ucb <= pomdp.extraction_cost
         if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0 && stop_bound
             return MEAction(type=:stop)
         else

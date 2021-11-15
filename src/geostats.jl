@@ -2,6 +2,7 @@ mutable struct LUParams
     C₂₂::Matrix{Float64}
     A₂₁::Matrix{Float64}
     L₁₁::LowerTriangular{Float64, Matrix{Float64}}
+    L₂₂::LowerTriangular{Float64, Matrix{Float64}}
     dlocs::Vector{Int64}
     slocs::Vector{Int64}
     lugs::LUGS
@@ -16,8 +17,11 @@ function LUParams(γ::Variogram, domain::CartesianGrid)
     C₂₂ = sill(γ) .- GeoStats.pairwise(γ, 𝒟s)
     A₂₁ = zeros(Float64, 0, 0)
     L₁₁ = cholesky(A₂₁).L
+    K = Symmetric(C₂₂)
+    K += γ.nugget.*Matrix(I, size(K))
+    L₂₂ = cholesky(K).L
     lugs = LUGS(:ore => (mean=0.0, variogram=γ,))
-    return LUParams(C₂₂, A₂₁, L₁₁, dlocs, slocs, lugs)
+    return LUParams(C₂₂, A₂₁, L₁₁, L₂₂, dlocs, slocs, lugs)
 end
 
 @with_kw struct GeoStatsDistribution <: GeoDist
@@ -58,8 +62,13 @@ function update!(d::GeoStatsDistribution, o::RockObservations)
     B₁₂ = L₁₁ \ C₁₂
     A₂₁ = B₁₂'
 
+    K = Symmetric(d.lu_params.C₂₂ - A₂₁*B₁₂)
+    K += d.variogram.nugget.*Matrix(I, size(K))
+    L₂₂ = varparams.factorization(K).L
+
     d.lu_params.A₂₁ = A₂₁
     d.lu_params.L₁₁ = L₁₁
+    d.lu_params.L₂₂ = L₂₂
 end
 
 function calc_covs(d::GeoStatsDistribution, problem)
@@ -84,17 +93,11 @@ function calc_covs(d::GeoStatsDistribution, problem)
     fact = varparams.factorization
     if isempty(d.lu_params.dlocs)
         d₂  = zero(Float64)
-        K = Symmetric(d.lu_params.C₂₂)
-        K += d.variogram.nugget.*Matrix(I, size(K))
-        L₂₂ = fact(K).L
     else
         B₁₂ = d.lu_params.A₂₁'
         d₂ = d.lu_params.A₂₁ * (d.lu_params.L₁₁ \ z₁)
-        K = Symmetric(d.lu_params.C₂₂ - d.lu_params.A₂₁*B₁₂)
-        K += d.variogram.nugget.*Matrix(I, size(K))
-        L₂₂ = fact(K).L
     end
-    return (d₂, z₁, L₂₂)
+    return (d₂, z₁)
 end
 
 """
@@ -158,9 +161,9 @@ function Base.rand(rng::AbstractRNG, d::GeoStatsDistribution, n::Int64=1)
         problem = SimulationProblem(geodata, d.domain, (:ore), n)
     end
     conames = (:ore,)
-    d₂, z₁, L₂₂ = calc_covs(d, problem)
+    d₂, z₁ = calc_covs(d, problem)
     μ = 0.0
-    coparams = [(z₁, d₂, L₂₂, μ, d.lu_params.dlocs, d.lu_params.slocs),]
+    coparams = [(z₁, d₂, d.lu_params.L₂₂, μ, d.lu_params.dlocs, d.lu_params.slocs),]
     preproc = Dict()
     push!(preproc, conames => coparams)
     solution = solve_nopreproc(problem, d.lu_params.lugs, preproc)
