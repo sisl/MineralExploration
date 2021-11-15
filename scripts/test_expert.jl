@@ -19,7 +19,7 @@ ds0 = POMDPs.initialstate_distribution(m)
 
 g = GeoStatsDistribution(m)
 
-up = MEBeliefUpdater(m, g, 1000, 2.0, 1)
+up = MEBeliefUpdater(m, g, 1000, 2.0)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")

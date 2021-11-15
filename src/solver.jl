@@ -136,9 +136,9 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     mean_volume = Statistics.mean(volumes)
     volume_var = Statistics.var(volumes)
     volume_std = sqrt(volume_var)
-    lcb = mean_volume - volume_std*pomdp.extraction_lcb
-    ucb = mean_volume + volume_std*pomdp.extraction_ucb
-    stop_bound = lcb >= pomdp.extraction_cost || ucb <= pomdp.extraction_cost
+    lcb = mean_volume - volume_std*p.m.extraction_lcb
+    ucb = mean_volume + volume_std*p.m.extraction_ucb
+    stop_bound = lcb >= p.m.extraction_cost || ucb <= p.m.extraction_cost
     if b.stopped
         if lcb >= p.m.extraction_cost
             return MEAction(type=:mine)
