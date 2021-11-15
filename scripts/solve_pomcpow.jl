@@ -21,14 +21,16 @@ initialize_data!(m, N_INITIAL)
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 1000, 5.0)
+g = GeoStatsDistribution(m)
+
+up = MEBeliefUpdater(m, g, 100, 2.0, 1)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 next_action = NextActionSampler() #b0, up)
 # next_action = GPNextAction(5.0, 25.0, 25.0, NextActionSampler())
-solver = POMCPOWSolver(tree_queries=1000,
+solver = POMCPOWSolver(tree_queries=100,
                        check_repeat_obs=true,
                        check_repeat_act=true,
                        next_action=next_action,
@@ -54,14 +56,13 @@ planner = POMDPs.solve(solver, m)
 # a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
 # tree = info[:tree]
 # inbrowser(D3Tree(tree, init_expand=1), "firefox")
-# STOP
+
 println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
 # savefig(fig, "./data/example/ore_vals.png")
 display(fig)
 
-massive_map = s0.mainbody_map .>= m.massive_threshold
-s_massive = s0.mainbody_map .* massive_map
+s_massive = s0.ore_map .>= m.massive_threshold
 r_massive = sum(s_massive)
 println("Massive ore: $r_massive")
 println("MB Variance: $(s0.var)")
@@ -70,15 +71,15 @@ fig = heatmap(s_massive[:,:,1], title="Massive Ore Deposits: $r_massive", fill=t
 # savefig(fig, "./data/example/massive.png")
 display(fig)
 
-# fig = plot(b0)
-# display(fig)
+fig = plot(b0)
+display(fig)
 #
-vars = [p[1] for p in b0.particles]
+vars = [p.var for p in b0.particles]
 mean_vars = mean(vars)
 std_vars = std(vars)
 println("Vars: $mean_vars ± $std_vars")
 #
-vols = [sum((p[2] .>= m.massive_threshold).*p[2]) for p in b0.particles]
+vols = [sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
 mean_vols = mean(vols)
 std_vols = std(vols)
 println("Vols: $mean_vols ± $std_vols")
@@ -109,7 +110,7 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     @show r
     @show sp.stopped
     @show bp.stopped
-    volumes = [sum((p[2] .>= m.massive_threshold).*p[2]) for p in bp.particles]
+    volumes = [sum(p.ore_map .>= m.massive_threshold) for p in bp.particles]
     # volumes = Float64[sum(p[2][:,:,1] .>= m.massive_threshold) for p in bp.particles]
     mean_volume = mean(volumes)
     std_volume = std(volumes)
@@ -124,7 +125,7 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     # savefig(fig, str)
     display(fig)
 
-    vars = [p[1] for p in bp.particles]
+    vars = [p.var for p in bp.particles]
     mean_vars = mean(vars)
     std_vars = std(vars)
     println("Vars: $mean_vars ± $std_vars")

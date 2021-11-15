@@ -38,8 +38,7 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
     else
         volumes = Float64[]
         for s in b.particles
-            massive_map = s[2] .>= pomdp.massive_threshold
-            s_massive = massive_map.*s[2]
+            s_massive = s.ore_map .>= pomdp.massive_threshold
             v = sum(s_massive)
             push!(volumes, v)
         end
@@ -129,8 +128,7 @@ end
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     volumes = Float64[]
     for s in b.particles
-        massive_map = s[2] .>= p.m.massive_threshold
-        s_massive = massive_map.*s[2]
+        s_massive = s.ore_map .>= p.m.massive_threshold
         v = sum(s_massive)
         push!(volumes, v)
     end
@@ -148,7 +146,7 @@ function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     elseif lcb >= p.m.extraction_cost
         return MEAction(type=:stop)
     else
-        ore_maps = Array{Float64, 3}[s[2] for s  in b.particles]
+        ore_maps = Array{Float64, 3}[s.ore_map for s  in b.particles]
         w = 1.0/length(ore_maps)
         mean = sum(ore_maps)./length(ore_maps)
         var = sum([w*(ore_map - mean).^2 for (i, ore_map) in enumerate(ore_maps)])

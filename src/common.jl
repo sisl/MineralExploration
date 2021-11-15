@@ -27,13 +27,14 @@ end
     coords::CartesianIndex = CartesianIndex(0, 0)
 end
 
-# struct MEBelief
-#     particles::Vector{Tuple{Float64, Array{Float64, 3}}} # Vector of vars & lode maps
+abstract type GeoDist end
+
+# struct MEBelief{G}
+#     particles::Vector{MEState} # Vector of vars & lode maps
 #     rock_obs::RockObservations
 #     acts::Vector{MEAction}
 #     obs::Vector{MEObservation}
 #     stopped::Bool
 #     decided::Bool
-#     full::Bool # Whether or not to generate full state maps # TODO Implement this
-#     gp_dist::GeoStatsDistribution
+#     geostats::G #GSLIB or GeoStats
 # end

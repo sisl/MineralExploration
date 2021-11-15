@@ -1,30 +1,38 @@
 module MineralExploration
 
-using POMDPs
-using POMDPModelTools
-using POMCPOW
 using BeliefUpdaters
-using Random
-using Plots
-using GeoStats
+using CSV
 using DataFrames
+using Distributions
+using GeoStats
+using LinearAlgebra
 using Parameters
+using Plots
+using POMCPOW
+using POMDPModelTools
+using POMDPs
+using Random
 using StatsBase
 using Statistics
-using Distributions
-using LinearAlgebra
+
 
 export
         MEState,
         MEObservation,
         MEAction,
-        RockObservations
+        RockObservations,
+        GeoDist
 include("common.jl")
 
 export
         GeoStatsDistribution,
         kriging
 include("geostats.jl")
+
+export
+        GSLIBDistribution,
+        kriging
+include("gslib.jl")
 
 
 export
