@@ -14,12 +14,11 @@ struct MEBeliefUpdater{G} <: POMDPs.Updater
     geostats::G
     n::Int64
     noise::Float64
-    updates::Int64
     rng::AbstractRNG
 end
 
 MEBeliefUpdater(m::MineralExplorationPOMDP, geostats::GeoDist, n::Int64,
-                noise::Float64=1.0, updates::Int64=10) = MEBeliefUpdater(m, geostats, n, noise, updates, Random.GLOBAL_RNG)
+                noise::Float64=1.0) = MEBeliefUpdater(m, geostats, n, noise, Random.GLOBAL_RNG)
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     particles = rand(d, up.n)
@@ -65,7 +64,7 @@ function reweight(up::MEBeliefUpdater, geostats::GeoDist, particles::Vector, roc
         w = pdf(gp_dist, o_n)
         push!(ws, w)
     end
-    ws .+= 1e-9
+    ws .+= 1e-6
     ws ./= sum(ws)
     return ws
 end
@@ -111,14 +110,9 @@ end
 
 function update_particles(up::MEBeliefUpdater, particles::Vector{MEState},
                         geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
-    pp = particles
-    pp_new = nothing
-    for i = 1:up.updates
-        wp = reweight(up, geostats, pp, rock_obs)
-        pp = resample(up, pp, wp, geostats, rock_obs, a, o)
-        pp_new = pp
-    end
-    return pp_new
+    wp = reweight(up, geostats, particles, rock_obs)
+    pp = resample(up, particles, wp, geostats, rock_obs, a, o)
+    return pp
 end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
@@ -126,7 +120,7 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
     if a.type != :drill
         bp_particles = MEState[] # MEState[p for p in b.particles]
         for p in b.particles
-            s = MEState(p.ore_map, p.var, p.mainbody_map, p.rock_obs, o.stopped, o.decided)
+            s = MEState(p.ore_map, p.mainbody_params, p.mainbody_map, p.rock_obs, o.stopped, o.decided)
             push!(bp_particles, s)
         end
         bp_rock = RockObservations(ore_quals=deepcopy(b.rock_obs.ore_quals),
@@ -278,7 +272,7 @@ function Plots.plot(b::MEBelief, t=nothing)
         mean_title = "Belief Mean t=$t"
         std_title = "Belief StdDev t=$t"
     end
-    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0)) , legend=:none)
+    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
     fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2))
     if !isempty(b.rock_obs.ore_quals)
         x = b.rock_obs.coordinates[2, :]
