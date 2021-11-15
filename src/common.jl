@@ -3,9 +3,9 @@
     coordinates::Matrix{Int64} = zeros(Int64, 2, 0)
 end
 
-struct MEState
+struct MEState{MB}
     ore_map::Array{Float64}  # 3D array of ore_quality values for each grid-cell
-    var::Float64 #  Diagonal variance of main ore-body generator
+    mainbody_params::MB #  Diagonal variance of main ore-body generator
     mainbody_map::Array{Float64}
     rock_obs::RockObservations
     stopped::Bool # Whether or not STOP action has been taken

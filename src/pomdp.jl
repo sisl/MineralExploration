@@ -10,14 +10,15 @@
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 150.0
-    extraction_lcb::Float64 = 0.5
-    extraction_ucb::Float64 = 2.0
+    extraction_lcb::Float64 = 0.1
+    extraction_ucb::Float64 = 1.0
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
     gp_mean::Float64 = 0.35
     gp_weight::Float64 = 1.0
-    mainbody_gen::MainbodyGen
+    mainbody_weight::Float64 = 0.45
+    mainbody_gen::MainbodyGen = SingleFixedNode(grid_dims=grid_dim)
     massive_threshold::Float64 = 0.7
     rng::AbstractRNG = Random.GLOBAL_RNG
 end
@@ -96,6 +97,7 @@ POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.decided
 struct MEInitStateDist
     gp_distribution::GeoDist
     gp_weight::Float64
+    mainbody_weight::Float64
     mainbody_gen::MainbodyGen
     massive_thresh::Float64
     rng::AbstractRNG
@@ -103,7 +105,7 @@ end
 
 function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP, geodist_type::Type=GeoStatsDistribution)
     gp_dist = geodist_type(m)
-    MEInitStateDist(gp_dist, m.gp_weight, m.mainbody_gen,
+    MEInitStateDist(gp_dist, m.gp_weight, m.mainbody_weight, m.mainbody_gen,
                     m.massive_threshold, m.rng)
 end
 
@@ -120,15 +122,7 @@ function Base.rand(d::MEInitStateDist, n::Int=1)
     x_dim = d.gp_distribution.grid_dims[1]
     y_dim = d.gp_distribution.grid_dims[2]
     for i = 1:n
-        lode_map = zeros(Float64, x_dim, y_dim)
-        mainbody_var = rand(d.rng)*(d.mainbody_var_max - d.mainbody_var_min) + d.mainbody_var_min
-        cov = Distributions.PDiagMat([mainbody_var, mainbody_var])
-        mvnorm = MvNormal(d.mainbody_loc, cov)
-        for i = 1:x_dim
-            for j = 1:y_dim
-                lode_map[i, j] = pdf(mvnorm, [float(i), float(j)])
-            end
-        end
+        lode_map, lode_params = rand(d.rng, d.mainbody_gen)
         max_lode = maximum(lode_map)
         lode_map ./= max_lode
         lode_map .*= d.mainbody_weight
@@ -137,8 +131,7 @@ function Base.rand(d::MEInitStateDist, n::Int=1)
         gp_ore_map = gp_ore_maps[i]
         ore_map = lode_map + gp_ore_map.*d.gp_weight
         # clamp!(ore_map, 0.0, Inf)
-        # ore_map = gp_ore_map
-        state = MEState(ore_map, mainbody_var, lode_map,
+        state = MEState(ore_map, lode_params, lode_map,
                 RockObservations(), false, false)
         push!(states, state)
     end
@@ -194,7 +187,7 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
     else
         error("Invalid Action! Action: $(a.type), Stopped: $stopped, Decided: $decided")
     end
-    sp = MEState(s.ore_map, s.var, s.mainbody_map, rock_obs_p, stopped_p, decided_p)
+    sp = MEState(s.ore_map, s.mainbody_params, s.mainbody_map, rock_obs_p, stopped_p, decided_p)
     return (sp=sp, o=obs, r=r)
 end
 
@@ -238,13 +231,8 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
     if a.type != :drill
         w = o.ore_quality == nothing ? 1.0 : 0.0
     else
-        # mainbody_cov = [s.var 0.0; 0.0 s.var]
-        # mainbody_dist = MvNormal(m.mainbody_loc, mainbody_cov)
         o_mainbody = s.mainbody_map[a.coords[1], a.coords[2], 1]
-
-        # mainbody_max = 1.0/(2*π*s.var)
         o_gp = (o.ore_quality - o_mainbody)/m.gp_weight
-        # if s.bore_coords isa Nothing || size(s.bore_coords)[2] == 0
         mu = m.gp_mean
         sigma = sqrt(m.variogram[1])
         point_dist = Normal(mu, sigma)

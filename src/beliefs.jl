@@ -56,7 +56,6 @@ function reweight(up::MEBeliefUpdater, geostats::GeoDist, particles::Vector, roc
     mu = zeros(Float64, n) .+ up.m.gp_mean
     gp_dist = MvNormal(mu, K)
     for s in particles
-        mb_var = s.var
         mb_map = s.mainbody_map
         o_n = zeros(Float64, n)
         for i = 1:n
@@ -74,26 +73,17 @@ end
 function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
                 geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
     sampled_particles = sample(up.rng, particles, StatsBase.Weights(wp), up.n, replace=true)
-    mainbody_vars = Float64[]
+    mainbody_params = []
     mainbody_maps = Array{Float64, 3}[]
     particles = MEState[]
     x = nothing
     ore_quals = deepcopy(rock_obs.ore_quals)
     for s in sampled_particles
-        mainbody_var = s.var
+        mainbody_param = s.mainbody_params
         mainbody_map = s.mainbody_map
         ore_map = s.ore_map
-        if mainbody_var ∈ mainbody_vars
-            mainbody_var += 2.0*(rand() - 0.5)*up.noise
-            mainbody_var = clamp(mainbody_var, 0.0, Inf)
-            mainbody_map = zeros(Float64, Int(up.m.grid_dim[1]), Int(up.m.grid_dim[2]))
-            cov = Distributions.PDiagMat([mainbody_var, mainbody_var])
-            mvnorm = MvNormal(up.m.mainbody_loc, cov)
-            for i = 1:up.m.grid_dim[1]
-                for j = 1:up.m.grid_dim[2]
-                    mainbody_map[i, j] = pdf(mvnorm, [float(i), float(j)])
-                end
-            end
+        if mainbody_param ∈ mainbody_params
+            mainbody_map, mainbody_param = perturb_sample(up.m.mainbody_gen, mainbody_param, up.noise)
             max_lode = maximum(mainbody_map)
             mainbody_map ./= max_lode
             mainbody_map .*= up.m.mainbody_weight
@@ -111,9 +101,9 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
         gp_ore_map = Base.rand(up.rng, geostats)
         ore_map = gp_ore_map.*up.m.gp_weight .+ mainbody_map
         rock_obs_p = RockObservations(rock_obs.ore_quals, rock_obs.coordinates)
-        sp = MEState(ore_map, mainbody_var, mainbody_map, rock_obs_p,
+        sp = MEState(ore_map, mainbody_param, mainbody_map, rock_obs_p,
                     o.stopped, o.decided)
-        push!(mainbody_vars, mainbody_var)
+        push!(mainbody_params, mainbody_param)
         push!(particles, sp)
     end
     return particles
@@ -288,7 +278,7 @@ function Plots.plot(b::MEBelief, t=nothing)
         mean_title = "Belief Mean t=$t"
         std_title = "Belief StdDev t=$t"
     end
-    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true) #, clims=(0.0, 1.0)) , legend=:none)
+    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0)) , legend=:none)
     fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2))
     if !isempty(b.rock_obs.ore_quals)
         x = b.rock_obs.coordinates[2, :]
