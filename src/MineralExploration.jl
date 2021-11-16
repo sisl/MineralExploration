@@ -64,4 +64,8 @@ export
         GPNextAction
 include("action_selection.jl")
 
+export
+        plot_error_history
+include("utils.jl")
+
 end

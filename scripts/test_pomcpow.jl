@@ -19,7 +19,7 @@ ds0 = POMDPs.initialstate_distribution(m)
 
 g = GeoStatsDistribution(m)
 
-up = MEBeliefUpdater(m, g, 1000, 2.0, 1)
+up = MEBeliefUpdater(m, g, 1000, 2.0)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -49,6 +49,7 @@ V = Float64[]
 ores = Float64[]
 D = Int64[]
 A = Symbol[]
+ME = Vector{Float64}[]
 println("Starting simulations")
 for i in 1:N
     if (i%1) == 0
@@ -69,7 +70,13 @@ for i in 1:N
     end
     push!(D, d)
     push!(A, h[end][:a].type)
-
+    errors = Float64[]
+    for step in h
+        b = step[:b]
+        b_vol = [sum(p.ore_map .>= m.massive_threshold) for p in b.particles]
+        push!(errors, mean(b_vol .- r_massive))
+    end
+    push!(ME, errors)
     println("Steps: $(length(h))")
     println("Decision: $(h[end][:a].type)")
     println("======================")

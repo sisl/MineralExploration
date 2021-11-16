@@ -18,7 +18,7 @@ function belief_scores(m, v)
     s = v[:,:,1]
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
-    scores = norm_mean .* norm_std
+    scores = norm_mean .+ norm_std
     # scores = norm_mean .+ norm_std
     scores .+= 1.0/length(scores)
     scores ./= sum(scores)
@@ -216,11 +216,7 @@ function GridPolicy(m::MineralExplorationPOMDP, n::Int, grid_size::Int)
 end
 
 function POMDPs.action(p::GridPolicy, b::MEBelief)
-    if b.bore_coords == nothing
-        n_bores = 0
-    else
-        n_bores = size(b.bore_coords)[2]
-    end
+    n_bores = length(b.rock_obs)
     if b.stopped
         volumes = Float64[]
         for s in b.particles
@@ -230,7 +226,7 @@ function POMDPs.action(p::GridPolicy, b::MEBelief)
         mean_volume = Statistics.mean(volumes)
         volume_var = Statistics.var(volumes)
         volume_std = sqrt(volume_var)
-        lcb = mean_volume - volume_std
+        lcb = mean_volume - volume_std*p.m.extraction_lcb
         if lcb >= p.m.extraction_cost
             return MEAction(type=:mine)
         else
