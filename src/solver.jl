@@ -18,9 +18,9 @@ function belief_scores(m, v)
     s = v[:,:,1]
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
-    scores = norm_mean .+ norm_std
+    scores = (norm_mean .* norm_std).^2
     # scores = norm_mean .+ norm_std
-    scores .+= 1.0/length(scores)
+    # scores .+= 1.0/length(scores)
     scores ./= sum(scores)
     return scores
 end

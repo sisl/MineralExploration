@@ -11,7 +11,7 @@ using MineralExploration
 
 N_INITIAL = 0
 MAX_BORES = 50
-GRIDS = [2, 3, 4, 5]
+GRIDS = [2] #, 3, 4, 5]
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2)
 initialize_data!(m, N_INITIAL)
@@ -20,7 +20,7 @@ ds0 = POMDPs.initialstate_distribution(m)
 
 g = GeoStatsDistribution(m)
 
-up = MEBeliefUpdater(m, g, 1000, 2.0)
+up = MEBeliefUpdater(m, g, 100, 2.0)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -30,7 +30,7 @@ std_returns = Float64[]
 mean_errors = Float64[]
 std_belief = Float64[]
 for n in GRIDS
-    policy = GridPolicy(m, GRIDS[n], 30)
+    policy = GridPolicy(m, n, 30)
 
     N = 100
     # rs = RolloutSimulator(max_steps=MAX_BORES+5)

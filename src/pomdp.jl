@@ -6,12 +6,12 @@
     min_bores::Int64 = 1 # Minimum number of bores
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
-    grid_spacing::Int64 = 1 # Number of cells in between each cell in which wells can be placed
+    grid_spacing::Int64 = 0 # Number of cells in between each cell in which wells can be placed
     drill_cost::Float64 = 0.1
     strike_reward::Float64 = 1.0
     extraction_cost::Float64 = 150.0
     extraction_lcb::Float64 = 0.1
-    extraction_ucb::Float64 = 1.5
+    extraction_ucb::Float64 = 1.0
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
@@ -197,7 +197,8 @@ function POMDPs.actions(m::MineralExplorationPOMDP)
     bore_actions = reshape(collect(idxs), prod(m.grid_dim[1:2]))
     actions = MEAction[MEAction(type=:stop), MEAction(type=:mine),
                         MEAction(type=:abandon)]
-    for coord in bore_actions
+    grid_step = m.grid_spacing + 1
+    for coord in bore_actions[1:grid_step:end]
         push!(actions, MEAction(coords=coord))
     end
     return actions
