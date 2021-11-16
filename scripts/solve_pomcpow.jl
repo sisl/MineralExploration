@@ -15,7 +15,9 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1)
+mainbody = MultiVarNode()
+
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1, mainbody_gen=mainbody)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
@@ -74,10 +76,10 @@ display(fig)
 fig = plot(b0)
 display(fig)
 #
-vars = [p.mainbody_params for p in b0.particles]
-mean_vars = mean(vars)
-std_vars = std(vars)
-println("Vars: $mean_vars ± $std_vars")
+# vars = [p.mainbody_params for p in b0.particles]
+# mean_vars = mean(vars)
+# std_vars = std(vars)
+# println("Vars: $mean_vars ± $std_vars")
 #
 vols = [sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
 mean_vols = mean(vols)
@@ -127,10 +129,10 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     # savefig(fig, str)
     display(fig)
 
-    vars = [p.mainbody_params for p in bp.particles]
-    mean_vars = mean(vars)
-    std_vars = std(vars)
-    println("Vars: $mean_vars ± $std_vars")
+    # vars = [p.mainbody_params for p in bp.particles]
+    # mean_vars = mean(vars)
+    # std_vars = std(vars)
+    # println("Vars: $mean_vars ± $std_vars")
     # fig = histogram(vars, bins=10)
     # display(fig)
     discounted_return += POMDPs.discount(m)^(t - 1)*r

@@ -36,7 +36,9 @@ include("gslib.jl")
 
 export
         MainbodyGen,
-        SingleFixedNode
+        SingleFixedNode,
+        SingleVarNode,
+        MultiVarNode
 include("mainbody.jl")
 
 export
