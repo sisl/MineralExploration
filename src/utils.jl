@@ -12,5 +12,5 @@ function plot_error_history(hs::Vector, n_max::Int64=10)
         push!(σ, std(vals))
     end
     σ .*= 1.0 .- isnan.(σ)
-    return plot(μ, yerror=σ)
+    return (plot(μ, yerror=σ), μ, σ)
 end

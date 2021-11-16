@@ -4,7 +4,7 @@ abstract type MainbodyGen end
 @with_kw struct SingleFixedNode <: MainbodyGen
     grid_dims::Tuple{Int64, Int64, Int64} = (50, 50, 1)
     mainbody_loc::Vector{Float64} = [25.0, 25.0]
-    mainbody_var_min::Float64 = 40.0
+    mainbody_var_min::Float64 = 50.0
     mainbody_var_max::Float64 = 80.0
 end
 

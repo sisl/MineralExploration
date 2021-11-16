@@ -50,6 +50,7 @@ ores = Float64[]
 D = Int64[]
 A = Symbol[]
 ME = Vector{Float64}[]
+STD = Vector{Float64}[]
 println("Starting simulations")
 for i in 1:N
     if (i%1) == 0
@@ -71,12 +72,15 @@ for i in 1:N
     push!(D, d)
     push!(A, h[end][:a].type)
     errors = Float64[]
+    stds = Float64[]
     for step in h
         b = step[:b]
         b_vol = [sum(p.ore_map .>= m.massive_threshold) for p in b.particles]
         push!(errors, mean(b_vol .- r_massive))
+        push!(stds, std(b_vol))
     end
     push!(ME, errors)
+    push!(STD, stds)
     println("Steps: $(length(h))")
     println("Decision: $(h[end][:a].type)")
     println("======================")

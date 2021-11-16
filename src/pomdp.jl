@@ -15,9 +15,9 @@
     # variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
-    gp_mean::Float64 = 0.35
+    gp_mean::Float64 = 0.3
     gp_weight::Float64 = 1.0
-    mainbody_weight::Float64 = 0.45
+    mainbody_weight::Float64 = 0.50
     mainbody_gen::MainbodyGen = SingleFixedNode(grid_dims=grid_dim)
     massive_threshold::Float64 = 0.7
     rng::AbstractRNG = Random.GLOBAL_RNG
