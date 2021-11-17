@@ -20,7 +20,7 @@ GRID_SPACING = 1
 mainbody = SingleFixedNode()
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
-                            mainbody_gen=mainbody)
+                            mainbody_gen=mainbody,sgsim_path_from_pomdp="Need to change to REAL PATH PLEASE!!!")
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)

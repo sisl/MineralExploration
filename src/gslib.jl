@@ -10,6 +10,7 @@
     zmin_zmax = (0.1, 0.6)
     lower_tail_option = (1, 0.1)
     upper_tail_option = (1, 0.6)
+    sgsim_path = "sgsim_output/"
 
     # DO NOT CHANGE BELOW PARAMS
     transform_data::Bool = true
@@ -55,7 +56,8 @@ function data_to_string_2d(data::RockObservations)
     str
 end
 
-function sgsim_params_to_string(p::GSLIBDistribution, data_file, N, dir, seed=nothing)
+function sgsim_params_to_string(p::GSLIBDistribution, data_file, N, seed=nothing)
+    dir = p.sgsim_path
     if seed == nothing
         seed = rand(1:10000000)
     end
@@ -100,7 +102,8 @@ $(p.variogram[6])  $(p.variogram[7])  $(p.variogram[8])     -a_hmax, a_hmin, a_v
 """
 end
 
-function kb2d_params_to_string(p::GSLIBDistribution, data_file, dir)
+function kb2d_params_to_string(p::GSLIBDistribution, data_file)
+dir = p.sgsim_path
     """
 Parameters for KB2D
 ********************
@@ -123,17 +126,20 @@ $(p.variogram[1])    $(p.variogram[2])  $(p.variogram[3]) $(p.variogram[6])  $(p
 """
 end
 
-function write_sgsim_params_to_file(p::GSLIBDistribution, N; dir="./", out_fn="sgsim.par", data_fn="data.txt")
+function write_sgsim_params_to_file(p::GSLIBDistribution, N; out_fn="sgsim.par", data_fn="data.txt")
+    dir = p.sgsim_path
     data_file = write_string_to_file(string(dir, data_fn), data_to_string(p.data))
-    write_string_to_file(string(dir, out_fn), sgsim_params_to_string(p, data_file, N, dir))
+    write_string_to_file(string(dir, out_fn), sgsim_params_to_string(p, data_file, N))
 end
 
-function write_kb2d_params_to_file(p::GSLIBDistribution, obs::RockObservations; dir="./", out_fn="kb2d.par", data_fn="data.txt")
+function write_kb2d_params_to_file(p::GSLIBDistribution, obs::RockObservations; out_fn="kb2d.par", data_fn="data.txt")
+    dir = p.sgsim_path
     data_file = write_string_to_file(string(dir, data_fn), data_to_string_2d(obs))
-    write_string_to_file(string(dir, out_fn), kb2d_params_to_string(p, data_file, dir))
+    write_string_to_file(string(dir, out_fn), kb2d_params_to_string(p, data_file))
 end
 
-function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent::Bool=true)
+function Base.rand(p::GSLIBDistribution, n::Int64=1; silent::Bool=true)
+    dir = p.sgsim_path
     # Write the param file
     if silent
         stdout_orig = stdout
@@ -142,7 +148,7 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
     errored = false
     try
         global ore_quals
-        fn = write_sgsim_params_to_file(p, n; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
+        fn = write_sgsim_params_to_file(p, n;) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
 
         # Run sgsim
         run(`sgsim $fn`)
@@ -167,14 +173,15 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
     return ore_quals
 end
 
-Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, n::Int64=1, dir::String="sgsim_output/") = Base.rand(p, n, dir)
+Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, n::Int64=1) = Base.rand(p, n)
 
-function kriging(p::GSLIBDistribution, obs::RockObservations, dir::String="kb2d_output/"; silent::Bool=true)
+function kriging(p::GSLIBDistribution, obs::RockObservations; silent::Bool=true)
+    dir = p.sgsim_path
     if silent
         stdout_orig = stdout
         (rd, wr) = redirect_stdout()
     end
-    fn = write_kb2d_params_to_file(p, obs; dir=dir) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
+    fn = write_kb2d_params_to_file(p, obs;) # NOTE: If we are going to want to sample many instances then we can include an "N" parameter here instead of the 1, but would need to update the code below as well
 
     # Run sgsim
     run(`kb2d $fn`)

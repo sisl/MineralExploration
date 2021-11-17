@@ -21,6 +21,7 @@
     mainbody_gen::MainbodyGen = SingleFixedNode(grid_dims=grid_dim)
     massive_threshold::Float64 = 0.7
     rng::AbstractRNG = Random.GLOBAL_RNG
+    sgsim_path_from_pomdp::String 
 end
 
 function GeoStatsDistribution(p::MineralExplorationPOMDP)
@@ -37,7 +38,7 @@ end
 function GSLIBDistribution(p::MineralExplorationPOMDP)
     error("Need to update the variogram first") # TODO
     return GSLIBDistribution(grid_dims=p.grid_dim, n=p.grid_dim,
-            data=deepcopy(p.initial_data), variogram=p.variogram, nugget=p.nugget)
+            data=deepcopy(p.initial_data), variogram=p.variogram, nugget=p.nugget,sgsim_path = p.sgsim_path_from_pomdp)
 end
 
 """
