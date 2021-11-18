@@ -1,15 +1,17 @@
 @with_kw struct GSLIBDistribution <: GeoDist
-    grid_dims::Tuple{Int64, Int64, Int64} = (80, 80, 1)
-    n::Tuple{Int64, Int64, Int64} = (80, 80, 1) # same as grid_dims, renamed for convenience
+    grid_dims::Tuple{Int64, Int64, Int64} = (50, 50, 1)
+    n::Tuple{Int64, Int64, Int64} = (50, 50, 1) # same as grid_dims, renamed for convenience
     data::RockObservations = RockObservations()
-    nugget::Tuple{Int64, Int64} = (1, 0) # TODO Check with Anthony if Int required
-    variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0) # TODO Check with Anthony if Int required
-    # CHANGE RARELY
+    mean::Float64 = 0.3
+    sill::Float64 = 0.005 # TODO currently defined by the target_histogram_file. Not used.
+    nugget::Float64 = 0.0001
+    variogram::Tuple = (1, 1, 0.0, 0.0, 0.0, 30.0, 30.0, 1.0)
+    # # CHANGE RARELY
     target_histogram_file::String = "parameters/example_porosity.txt"
     columns_for_vr_and_wt = (1,0)
-    zmin_zmax = (0.1, 0.6)
-    lower_tail_option = (1, 0.1)
-    upper_tail_option = (1, 0.6)
+    zmin_zmax = (0.0, 1.0)
+    lower_tail_option = (1, 0.0)
+    upper_tail_option = (1, 1.0)
 
     # DO NOT CHANGE BELOW PARAMS
     transform_data::Bool = true
@@ -67,7 +69,7 @@ START OF PARAMETERS:
 $(data_file)          -file with data
 1  2  3  4  0  0              -  columns for X,Y,Z,vr,wt,sec.var.
 -9999999 999999               -  trimming limits
-$(Int(p.transform_data))                             -transform the data (0=no, 1=yes)
+1                             -transform the data (0=no, 1=yes)
 $(dir)sgsim.trn                     -  file for output trans table
 1                             -  consider ref. dist (0=no, 1=yes)
 $(p.target_histogram_file)                  -  file with ref. dist distribution
@@ -91,11 +93,11 @@ $seed                         -random number seed
 100.0  100.0  10.0              -maximum search radii
 0.0   0.0   0.0              -angles for search ellipsoid
 51    51    11                -size of covariance lookup table
-0     0.60   1.0              -ktype: 0=SK,1=OK,2=LVM,3=EXDR,
+0     $(p.mean)   1.0              -ktype: 0=SK,1=OK,2=LVM,3=EXDR,
 ../data/ydata.dat             -  file with LVM, EXDR, or COLC
 4                             -  column for secondary variable
-$(p.nugget[1])    $(p.nugget[2])                      -nst, nugget effect
-$(p.variogram[1])    $(p.variogram[2])  $(p.variogram[3])   $(p.variogram[4])   $(p.variogram[5])     -it,cc,ang1,ang2,ang3
+1    $(0.02)                      -nst, nugget effect
+$(p.variogram[1])    $(0.98)  $(p.variogram[3])   $(p.variogram[4])   $(p.variogram[5])     -it,cc,ang1,ang2,ang3
 $(p.variogram[6])  $(p.variogram[7])  $(p.variogram[8])     -a_hmax, a_hmin, a_vert
 """
 end
@@ -147,12 +149,6 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
         # Run sgsim
         run(`sgsim $fn`)
 
-        # Load the results and return
-        vals = CSV.File("$(dir)sgsim.out",header=3, types=Float64) |> CSV.Tables.matrix
-        # reshape(vals, p.n..., N) # For multiple samples
-
-        poro_2D = reshape(vals, p.n)
-        ore_quals = repeat(poro_2D, outer=(1, 1, 8))
     catch
         errored = true
     end
@@ -164,7 +160,26 @@ function Base.rand(p::GSLIBDistribution, n::Int64=1, dir="sgsim_output/"; silent
     if errored
         error("SGSIM sampling error!")
     end
-    return ore_quals
+    # Load the results and return
+    vals = CSV.File("$(dir)sgsim.out",header=3, types=Float64) |> CSV.Tables.matrix
+    # reshape(vals, p.n..., N) # For multiple samples
+
+    if n==1
+        poro_2D = reshape(vals, p.n)
+        ore_quals = repeat(poro_2D, outer=(1, 1, p.grid_dims[3]))
+        return ore_quals
+    else
+        ore_quals = Array{Float64, 3}[]
+        increment = prod(p.grid_dims)
+        for i = 1:n
+            start_idx = (i - 1)*increment + 1
+            end_idx = start_idx + increment - 1
+            ore_map = reshape(vals[start_idx:end_idx], p.n)
+            # ore_map = repeat(poro_2D, outer=(1, 1, p.grid_dims[3]))
+            push!(ore_quals, ore_map)
+        end
+        return ore_quals
+    end
 end
 
 Base.rand(rng::Random.AbstractRNG, p::GSLIBDistribution, n::Int64=1, dir::String="sgsim_output/") = Base.rand(p, n, dir)

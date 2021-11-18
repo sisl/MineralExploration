@@ -11,8 +11,13 @@ using MineralExploration
 
 N_INITIAL = 0
 MAX_BORES = 10
+GRID_SPACING = 1
 
-m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=2, grid_spacing=1)
+# mainbody = MultiVarNode()
+mainbody = SingleFixedNode()
+
+m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
+                            mainbody_gen=mainbody)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)

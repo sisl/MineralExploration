@@ -21,18 +21,21 @@ mainbody = SingleFixedNode()
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
                             mainbody_gen=mainbody)
+                            # , geodist_type=GSLIBDistribution)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
-g = GeoStatsDistribution(m)
-
-up = MEBeliefUpdater(m, g, 1000, 2.0)
+up = MEBeliefUpdater(m, 100, 2.0)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
+
+ore_maps = [p.ore_map for p in b0.particles];
+mean_ore_map = mean(ore_maps)
+var_ore_map = var(ore_maps)
 next_action = NextActionSampler() #b0, up)
 # next_action = GPNextAction(30.0, 25.0, 25.0, NextActionSampler())
 solver = POMCPOWSolver(tree_queries=10000,

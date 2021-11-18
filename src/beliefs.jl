@@ -17,8 +17,10 @@ struct MEBeliefUpdater{G} <: POMDPs.Updater
     rng::AbstractRNG
 end
 
-MEBeliefUpdater(m::MineralExplorationPOMDP, geostats::GeoDist, n::Int64,
-                noise::Float64=1.0) = MEBeliefUpdater(m, geostats, n, noise, Random.GLOBAL_RNG)
+function MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0)
+    geostats = m.geodist_type(m)
+    return MEBeliefUpdater(m, geostats, n, noise, Random.GLOBAL_RNG)
+end
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     particles = rand(d, up.n)
@@ -30,7 +32,13 @@ function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
 end
 
 function calc_K(geostats::GeoDist, rock_obs::RockObservations)
-    pdomain = geostats.domain
+    if isa(geostats, GeoStatsDistribution)
+        pdomain = geostats.domain
+        γ = geostats.variogram
+    else
+        pdomain = CartesianGrid{Int64}(geostats.grid_dims[1], geostats.grid_dims[2])
+        γ = SphericalVariogram(sill=geostats.sill, range=geostats.variogram[6], nugget=geostats.nugget)
+    end
     table = DataFrame(ore=rock_obs.ore_quals .- geostats.mean)
     domain = PointSet(rock_obs.coordinates)
     pdata = georef(table, domain)
@@ -41,7 +49,6 @@ function calc_K(geostats::GeoDist, rock_obs::RockObservations)
     # end
     dlocs = Int64[m[1] for m in vmapping]
     𝒟d = [centroid(pdomain, i) for i in dlocs]
-    γ = geostats.variogram
     K = GeoStats.sill(γ) .- GeoStats.pairwise(γ, 𝒟d)
     return K
 end
@@ -59,7 +66,7 @@ function reweight(up::MEBeliefUpdater, geostats::GeoDist, particles::Vector, roc
         o_n = zeros(Float64, n)
         for i = 1:n
             o_mainbody = mb_map[bore_coords[1, i], bore_coords[2, i]]
-            o_n[i] = (ore_obs[i] - o_mainbody)/up.m.gp_weight
+            o_n[i] = ore_obs[i] - o_mainbody
         end
         w = pdf(gp_dist, o_n)
         push!(ws, w)
@@ -92,13 +99,13 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
         n_ore_quals = Float64[]
         for (i, ore_qual) in enumerate(ore_quals)
             prior_ore = mainbody_map[rock_obs.coordinates[1, i], rock_obs.coordinates[2, i], 1]
-            n_ore_qual = (ore_qual - prior_ore)./up.m.gp_weight
+            n_ore_qual = (ore_qual - prior_ore)
             push!(n_ore_quals, n_ore_qual)
         end
         geostats.data.ore_quals = n_ore_quals
         # gslib_dist.data.ore_quals = n_ore_quals
         gp_ore_map = Base.rand(up.rng, geostats)
-        ore_map = gp_ore_map.*up.m.gp_weight .+ mainbody_map
+        ore_map = gp_ore_map .+ mainbody_map
         rock_obs_p = RockObservations(rock_obs.ore_quals, rock_obs.coordinates)
         sp = MEState(ore_map, mainbody_param, mainbody_map, rock_obs_p,
                     o.stopped, o.decided)
@@ -125,18 +132,38 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
         end
         bp_rock = RockObservations(ore_quals=deepcopy(b.rock_obs.ore_quals),
                                 coordinates=deepcopy(b.rock_obs.coordinates))
-        # TODO Swap GeoStatsDistribtuion with genera
-        bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, bp_rock,
-                                        b.geostats.domain, b.geostats.mean,
-                                        b.geostats.variogram, b.geostats.lu_params)
+        # TODO Make this a little more general in future
+        if up.m.geodist_type == GeoStatsDistribution
+            bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, bp_rock,
+                                            b.geostats.domain, b.geostats.mean,
+                                            b.geostats.variogram, b.geostats.lu_params)
+        elseif up.m.geodist_type == GSLIBDistribution
+            bp_geostats = GSLIBDistribution(b.geostats.grid_dims, b.geostats.grid_dims,
+                                            bp_rock, b.geostats.mean, b.geostats.sill, b.geostats.nugget,
+                                            b.geostats.variogram, b.geostats.target_histogram_file,
+                                            b.geostats.columns_for_vr_and_wt, b.geostats.zmin_zmax,
+                                            b.geostats.lower_tail_option, b.geostats.upper_tail_option,
+                                            b.geostats.transform_data, b.geostats.mn,
+                                            b.geostats.sz)
+        end
     else
         bp_rock = deepcopy(b.rock_obs)
         bp_rock.coordinates = hcat(bp_rock.coordinates, [a.coords[1], a.coords[2]])
         push!(bp_rock.ore_quals, o.ore_quality)
-        bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, deepcopy(bp_rock),
-                                        b.geostats.domain, b.geostats.mean,
-                                        b.geostats.variogram, b.geostats.lu_params)
-        update!(bp_geostats, bp_rock)
+        if up.m.geodist_type == GeoStatsDistribution
+            bp_geostats = GeoStatsDistribution(b.geostats.grid_dims, deepcopy(bp_rock),
+                                            b.geostats.domain, b.geostats.mean,
+                                            b.geostats.variogram, b.geostats.lu_params)
+            update!(bp_geostats, bp_rock)
+        elseif up.m.geodist_type == GSLIBDistribution
+            bp_geostats = GSLIBDistribution(b.geostats.grid_dims, b.geostats.grid_dims,
+                                            bp_rock, b.geostats.mean, b.geostats.sill, b.geostats.nugget,
+                                            b.geostats.variogram, b.geostats.target_histogram_file,
+                                            b.geostats.columns_for_vr_and_wt, b.geostats.zmin_zmax,
+                                            b.geostats.lower_tail_option, b.geostats.upper_tail_option,
+                                            b.geostats.transform_data, b.geostats.mn,
+                                            b.geostats.sz)
+        end
         bp_particles = update_particles(up, b.particles, bp_geostats, bp_rock, a, o)
     end
 
