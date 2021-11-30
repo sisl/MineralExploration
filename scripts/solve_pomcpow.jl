@@ -15,19 +15,20 @@ using MineralExploration
 N_INITIAL = 0
 MAX_BORES = 10
 GRID_SPACING = 1
+MAX_MOVEMENT = 10
 
 # mainbody = MultiVarNode()
 mainbody = SingleFixedNode()
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
-                            mainbody_gen=mainbody)
+                            mainbody_gen=mainbody, max_movement=MAX_MOVEMENT)
                             # , geodist_type=GSLIBDistribution)
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
-s0 = rand(ds0)
+# s0 = rand(ds0)
 
-up = MEBeliefUpdater(m, 100, 2.0)
+up = MEBeliefUpdater(m, 1000, 2.0)
 println("Initializing belief...")
 b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
@@ -61,7 +62,7 @@ planner = POMDPs.solve(solver, m)
 # MineralExploration.std(volumes)
 
 # println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, b0, tree_in_info=true)
+# a, info = POMCPOW.action_info(planner, B[2], tree_in_info=true)
 # tree = info[:tree]
 # inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
@@ -119,7 +120,8 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     a_new = a
     b_new = bp
     @show t
-    @show a
+    @show a.type
+    @show a.coords
     @show r
     @show sp.stopped
     @show bp.stopped

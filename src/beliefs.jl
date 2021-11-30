@@ -216,6 +216,26 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
         n_initial = length(m.initial_data)
         if !isempty(b.rock_obs.ore_quals)
             n_obs = length(b.rock_obs.ore_quals) - n_initial
+            if m.max_movement != 0 && n_obs > 0
+                d = m.max_movement
+                drill_s = b.rock_obs.coordinates[:,end]
+                x = drill_s[1]
+                y = drill_s[2]
+                reachable_coords = CartesianIndices((x-d:x+d,y-d:y+d))
+                reachable_acts = MEAction[]
+                for coord in reachable_coords
+                    dx = abs(x - coord[1])
+                    dy = abs(y - coord[2])
+                    d2 = sqrt(dx^2 + dy^2)
+                    if d2 <= d
+                        push!(reachable_acts, MEAction(coords=coord))
+                    end
+                end
+                push!(reachable_acts, MEAction(type=:stop))
+                reachable_acts = Set(reachable_acts)
+                # reachable_acts = Set([MEAction(coords=coord) for coord in collect(reachable_coords)])
+                action_set = intersect(reachable_acts, action_set)
+            end
             for i=1:n_obs
                 coord = b.rock_obs.coordinates[:, i + n_initial]
                 x = Int64(coord[1])
@@ -247,6 +267,26 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
         n_initial = length(m.initial_data)
         if !isempty(s.rock_obs.ore_quals)
             n_obs = length(s.rock_obs.ore_quals) - n_initial
+            if m.max_movement != 0 && n_obs > 0
+                d = m.max_movement
+                drill_s = s.rock_obs.coordinates[:,end]
+                x = drill_s[1]
+                y = drill_s[2]
+                reachable_coords = CartesianIndices((x-d:x+d,y-d:y+d))
+                reachable_acts = MEAction[]
+                for coord in reachable_coords
+                    dx = abs(x - coord[1])
+                    dy = abs(y - coord[2])
+                    d2 = sqrt(dx^2 + dy^2)
+                    if d2 <= d
+                        push!(reachable_acts, MEAction(coords=coord))
+                    end
+                end
+                push!(reachable_acts, MEAction(type=:stop))
+                reachable_acts = Set(reachable_acts)
+                # reachable_acts = Set([MEAction(coords=coord) for coord in collect(reachable_coords)])
+                action_set = intersect(reachable_acts, action_set)
+            end
             for i=1:n_obs
                 coord = s.rock_obs.coordinates[:, i + n_initial]
                 x = Int64(coord[1])
@@ -261,8 +301,8 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
         elseif m.min_bores > 0
             delete!(action_set, MEAction(type=:stop))
         end
-        delete!(action_set, MEAction(type=:mine))
-        delete!(action_set, MEAction(type=:abandon))
+        # delete!(action_set, MEAction(type=:mine))
+        # delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)
     end
     return MEAction[]

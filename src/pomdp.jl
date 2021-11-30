@@ -4,7 +4,7 @@
     grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
     min_bores::Int64 = 1 # Minimum number of bores
-    max_movement::Int64 - 0 # Maximum distanace between bores. 0 denotes no restrictions
+    max_movement::Int64 = 0 # Maximum distanace between bores. 0 denotes no restrictions
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 0 # Number of cells in between each cell in which wells can be placed
@@ -150,6 +150,9 @@ function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
 end
 
 function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Random.AbstractRNG)
+    if a ∉ POMDPs.actions(m, s)
+        error("Invalid Action $a from state $s")
+    end
     stopped = s.stopped
     decided = s.decided
     a_type = a.type
@@ -209,25 +212,38 @@ function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
         return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
     else
         action_set = Set(POMDPs.actions(m))
-        if m.max_movement != 0
+        n_initial = length(m.initial_data)
+        n_obs = length(s.rock_obs.ore_quals) - n_initial
+        if m.max_movement != 0 && n_obs > 0
             d = m.max_movement
-            drill_s = s.bore_coords[:,end]
+            drill_s = s.rock_obs.coordinates[:,end]
             x = drill_s[1]
             y = drill_s[2]
             reachable_coords = CartesianIndices((x-d:x+d,y-d:y+d))
-            reachable_acts = Set([MEAction(coords=coord) for coord in collect(reachable_coords)])
-            action_set = #TODO intersection
+            reachable_acts = MEAction[]
+            for coord in reachable_coords
+                dx = abs(x - coord[1])
+                dy = abs(y - coord[2])
+                d2 = sqrt(dx^2 + dy^2)
+                if d2 <= d
+                    push!(reachable_acts, MEAction(coords=coord))
+                end
+            end
+            push!(reachable_acts, MEAction(type=:stop))
+            reachable_acts = Set(reachable_acts)
+            # reachable_acts = Set([MEAction(coords=coord) for coord in collect(reachable_coords)])
+            action_set = intersect(reachable_acts, action_set)
         end
-        for i=1:size(s.bore_coords)[2]
-            coord = s.bore_coords[:, i]
+        for i=1:n_obs
+            coord = s.rock_obs.coordinates[:, i + n_initial]
             x = Int64(coord[1])
             y = Int64(coord[2])
             keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
             keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
             setdiff!(action_set, keepout_acts)
         end
-        delete!(action_set, MEAction(type=:mine))
-        delete!(action_set, MEAction(type=:abandon))
+        # delete!(action_set, MEAction(type=:mine))
+        # delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)
     end
     return MEAction[]
