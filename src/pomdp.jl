@@ -4,6 +4,7 @@
     grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
     max_bores::Int64 = 10 # Maximum number of bores
     min_bores::Int64 = 1 # Minimum number of bores
+    max_movement::Int64 - 0 # Maximum distanace between bores. 0 denotes no restrictions
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 0 # Number of cells in between each cell in which wells can be placed
@@ -208,6 +209,15 @@ function POMDPs.actions(m::MineralExplorationPOMDP, s::MEState)
         return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
     else
         action_set = Set(POMDPs.actions(m))
+        if m.max_movement != 0
+            d = m.max_movement
+            drill_s = s.bore_coords[:,end]
+            x = drill_s[1]
+            y = drill_s[2]
+            reachable_coords = CartesianIndices((x-d:x+d,y-d:y+d))
+            reachable_acts = Set([MEAction(coords=coord) for coord in collect(reachable_coords)])
+            action_set = #TODO intersection
+        end
         for i=1:size(s.bore_coords)[2]
             coord = s.bore_coords[:, i]
             x = Int64(coord[1])
