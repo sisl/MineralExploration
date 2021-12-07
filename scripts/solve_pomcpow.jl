@@ -26,7 +26,7 @@ m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spac
 initialize_data!(m, N_INITIAL)
 
 ds0 = POMDPs.initialstate_distribution(m)
-# s0 = rand(ds0)
+s0 = rand(ds0)
 
 up = MEBeliefUpdater(m, 1000, 2.0)
 println("Initializing belief...")
