@@ -36,8 +36,7 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
 
     h = fit(Histogram, vols, [0:25:300;])
     h = normalize(h, mode=:probability)
-    # b0_hist = histogram(vols, title="Belief Volumes t=0", bins=[0:25:300;],
-    #                                     normalize=:probability, legend=:none)
+
     b0_hist = plot(h, title="Belief Volumes t=0", legend=:none)
     plot!(b0_hist, [r_massive, r_massive], [0.0, maximum(h.weights)], linecolor=:red, linewidth=3)
     if isa(save_dir, String)
@@ -62,12 +61,16 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
 
 
     discounted_return = 0.0
+    abs_errs = Float64[abs(mean_vols - r_massive)]
+    vol_stds = Float64[std_vols]
+    dists = Float64[]
     println("Entering Simulation...")
     for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_steps=50)
         @show t
         @show a.type
         @show a.coords
         discounted_return += POMDPs.discount(m)^(t - 1)*r
+        dist = sqrt(sum(([a.coords[1], a.coords[2]] .- 25.0).^2)) #TODO only for single fixed
 
         b_fig = plot(bp, t)
         vols = [sum(p.ore_map .>= m.massive_threshold) for p in bp.particles]
@@ -75,23 +78,46 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
         std_vols = std(vols)
         println("Vols: $mean_vols ± $std_vols")
 
-        # b_hist = histogram(vols, title="Belief Volumes t=$t", bins=[0:25:300;],
-        #                                     normalize=:probability, legend=:none)
-        h = fit(Histogram, vols, [0:25:300;])
-        h = normalize(h, mode=:probability)
-        b_hist = plot(h, title="Belief Volumes t=$t", legend=:none)
-        plot!(b_hist, [r_massive, r_massive], [0.0, maximum(h.weights)], linecolor=:red, linewidth=3)
-        if isa(save_dir, String)
-            path = string(save_dir, "b$t.png")
-            savefig(b_fig, path)
+        if a.type == :drill
+            push!(dists, dist)
+            push!(abs_errs, abs(mean_vols - r_massive))
+            push!(vol_stds, std_vols)
 
-            path = string(save_dir, "b$(t)_hist.png")
-            savefig(b_hist, path)
-        end
-        if display_figs
-            display(b_fig)
-            display(b_hist)
+            h = fit(Histogram, vols, [0:25:300;])
+            h = normalize(h, mode=:probability)
+            b_hist = plot(h, title="Belief Volumes t=$t", legend=:none)
+            plot!(b_hist, [r_massive, r_massive], [0.0, maximum(h.weights)], linecolor=:red, linewidth=3)
+            if isa(save_dir, String)
+                path = string(save_dir, "b$t.png")
+                savefig(b_fig, path)
+
+                path = string(save_dir, "b$(t)_hist.png")
+                savefig(b_hist, path)
+            end
+            if display_figs
+                display(b_fig)
+                display(b_hist)
+            end
         end
     end
     println("Discounted Return: $discounted_return")
+    dist_fig = plot(dists)
+    abs_err_fig = plot(abs_errs)
+    vols_fig = plot(vol_stds./vol_stds[1])
+    if isa(save_dir, String)
+        path = string(save_dir, "dists.png")
+        savefig(dist_fig, path)
+
+        path = string(save_dir, "abs_err.png")
+        savefig(abs_err_fig, path)
+
+        path = string(save_dir, "vol_std.png")
+        savefig(vols_fig, path)
+    end
+    if display_figs
+        display(dist_fig)
+        display(abs_err_fig)
+        display(vols_fig)
+    end
+    return (discounted_return, dists, abs_errs, vol_stds)
 end

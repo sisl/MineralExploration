@@ -8,7 +8,7 @@ using Statistics
 using MineralExploration
 
 N_INITIAL = 0
-MAX_BORES = 20
+MAX_BORES = 5
 GRID_SPACING = 1
 MAX_MOVEMENT = 0
 
@@ -38,4 +38,4 @@ solver = POMCPOWSolver(tree_queries=10000,
                        )
 planner = POMDPs.solve(solver, m)
 
-run_trial(m, up, planner, save_dir="./data/single_fixed_demo/")
+results = run_trial(m, up, planner, save_dir="./data/single_fixed_demo/")
