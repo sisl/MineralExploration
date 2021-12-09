@@ -94,6 +94,7 @@ std_vols = std(vols)
 println("Vols: $mean_vols ± $std_vols")
 profitable = mean(vols .>= m.extraction_cost)
 println("Profitable: $profitable")
+
 # fig = histogram(vars, bins=10 )
 # display(fig)
 # fig = histogram(vols, bins=10 )

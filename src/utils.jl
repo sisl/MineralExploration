@@ -1,6 +1,10 @@
-function plot_error_history(hs::Vector, n_max::Int64=10)
+function plot_history(hs::Vector, n_max::Int64=10,
+                        title::Union{Nothing, String}=nothing,
+                        y_label::Union{Nothing, String}=nothing,
+                        box_plot::Bool=false)
     μ = Float64[]
     σ = Float64[]
+    vals_vector = Vector{Float64}[]
     for i = 1:n_max
         vals = Float64[]
         for h in hs
@@ -9,19 +13,43 @@ function plot_error_history(hs::Vector, n_max::Int64=10)
             end
         end
         push!(μ, mean(vals))
-        push!(σ, std(vals))
+        push!(σ, std(vals)/sqrt(length(vals)))
+        push!(vals_vector, vals)
     end
     σ .*= 1.0 .- isnan.(σ)
-    return (plot(μ, yerror=σ), μ, σ)
+    if isa(title, String)
+        if box_plot
+            fig = plot(μ, legend=:none, title=title, ylabel=y_label)
+            for (i, vals) in enumerate(vals_vector)
+                boxplot!(fig, repeat([i], outer=length(vals)), vals, color=:white, outliers=false)
+            end
+        else
+            fig = plot(μ, yerror=σ, legend=:none, title=title, ylabel=y_label)
+        end
+    else
+        if box_plot
+            fig = plot(μ, legend=:none)
+            for (i, vals) in enumerate(vals_vector)
+                boxplot!(fig, i, vals, color=:white, outliers=false)
+            end
+        else
+            fig = plot(μ, yerror=σ, legend=:none)
+        end
+    end
+    return (fig, μ, σ)
 end
 
 function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMDPs.Policy;
-                display_figs::Bool=true, save_dir::Union{Nothing, String}=nothing)
+                display_figs::Bool=true, save_dir::Union{Nothing, String}=nothing, verbose::Bool=true)
     ds0 = POMDPs.initialstate_distribution(m)
     s0 = rand(ds0)
-    println("Initializing belief...")
+    if verbose
+        println("Initializing belief...")
+    end
     b0 = POMDPs.initialize_belief(up, ds0)
-    println("Belief Initialized!")
+    if verbose
+        println("Belief Initialized!")
+    end
 
     ore_fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
     s_massive = s0.ore_map .>= m.massive_threshold
@@ -32,9 +60,10 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
     vols = [sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
     mean_vols = mean(vols)
     std_vols = std(vols)
-    println("Vols: $mean_vols ± $std_vols")
-
-    h = fit(Histogram, vols, [0:25:300;])
+    if verbose
+        println("Vols: $mean_vols ± $std_vols")
+    end
+    h = fit(Histogram, vols, [0:10:300;])
     h = normalize(h, mode=:probability)
 
     b0_hist = plot(h, title="Belief Volumes t=0", legend=:none)
@@ -59,31 +88,40 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
         display(b0_hist)
     end
 
-
+    last_action = :drill
+    n_drills = 0
     discounted_return = 0.0
-    abs_errs = Float64[abs(mean_vols - r_massive)]
+    ae = mean(abs.(vols .- r_massive))
+    abs_errs = Float64[ae]
     vol_stds = Float64[std_vols]
     dists = Float64[]
-    println("Entering Simulation...")
+    if verbose
+        println("Entering Simulation...")
+    end
     for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_steps=50)
-        @show t
-        @show a.type
-        @show a.coords
         discounted_return += POMDPs.discount(m)^(t - 1)*r
         dist = sqrt(sum(([a.coords[1], a.coords[2]] .- 25.0).^2)) #TODO only for single fixed
+        last_action = a.type
 
         b_fig = plot(bp, t)
         vols = [sum(p.ore_map .>= m.massive_threshold) for p in bp.particles]
         mean_vols = mean(vols)
         std_vols = std(vols)
-        println("Vols: $mean_vols ± $std_vols")
+        if verbose
+            @show t
+            @show a.type
+            @show a.coords
+            println("Vols: $mean_vols ± $std_vols")
+        end
 
         if a.type == :drill
+            n_drills += 1
+            ae = mean(abs.(vols .- r_massive))
             push!(dists, dist)
-            push!(abs_errs, abs(mean_vols - r_massive))
+            push!(abs_errs, ae)
             push!(vol_stds, std_vols)
 
-            h = fit(Histogram, vols, [0:25:300;])
+            h = fit(Histogram, vols, [0:10:300;])
             h = normalize(h, mode=:probability)
             b_hist = plot(h, title="Belief Volumes t=$t", legend=:none)
             plot!(b_hist, [r_massive, r_massive], [0.0, maximum(h.weights)], linecolor=:red, linewidth=3)
@@ -100,10 +138,16 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
             end
         end
     end
-    println("Discounted Return: $discounted_return")
-    dist_fig = plot(dists)
-    abs_err_fig = plot(abs_errs)
-    vols_fig = plot(vol_stds./vol_stds[1])
+    if verbose
+        println("Discounted Return: $discounted_return")
+    end
+    ts = [1:length(abs_errs);] .- 1
+    dist_fig = plot(ts[2:end], dists, title="Bore Distance to Center",
+                    xlabel="Time Step", ylabel="Distance", legend=:none)
+    abs_err_fig = plot(ts, abs_errs, title="Absolute Volume Error",
+                    xlabel="Time Step", ylabel="Absolute Error", legend=:none)
+    vols_fig = plot(ts, vol_stds./vol_stds[1], title="Volume Standard Deviation",
+                    xlabel="Time Step", ylabel="Standard Deviation", legend=:none)
     if isa(save_dir, String)
         path = string(save_dir, "dists.png")
         savefig(dist_fig, path)
@@ -119,5 +163,5 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
         display(abs_err_fig)
         display(vols_fig)
     end
-    return (discounted_return, dists, abs_errs, vol_stds)
+    return (discounted_return, dists, abs_errs, vol_stds, n_drills, r_massive, last_action)
 end

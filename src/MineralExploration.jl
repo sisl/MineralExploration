@@ -14,6 +14,7 @@ using POMDPSimulators
 using POMDPs
 using Random
 using StatsBase
+using StatsPlots
 using Statistics
 
 
@@ -66,7 +67,7 @@ export
 include("action_selection.jl")
 
 export
-        plot_error_history,
+        plot_history,
         run_trial
 include("utils.jl")
 

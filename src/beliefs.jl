@@ -346,6 +346,14 @@ function Plots.plot(b::MEBelief, t=nothing)
         y = b.rock_obs.coordinates[1, :]
         plot!(fig1, x, y, seriestype = :scatter)
         plot!(fig2, x, y, seriestype = :scatter)
+        n = length(b.rock_obs)
+        if n > 1
+            for i = 1:n-1
+                x = b.rock_obs.coordinates[2, i:i+1]
+                y = b.rock_obs.coordinates[1, i:i+1]
+                plot!(fig1, x, y, arrow=:closed, color=:black)
+            end
+        end
     end
     fig = plot(fig1, fig2, layout=(1,2))
     return fig

@@ -16,8 +16,8 @@
     variogram::Tuple = (0.005, 30.0, 0.0001) #sill, range, nugget
     # nugget::Tuple = (1, 0)
     geodist_type::Type = GeoStatsDistribution # GeoDist type for geo noise
-    gp_mean::Float64 = 0.3
-    mainbody_weight::Float64 = 0.50
+    gp_mean::Float64 = 0.25
+    mainbody_weight::Float64 = 0.6
     mainbody_gen::MainbodyGen = SingleFixedNode(grid_dims=grid_dim)
     massive_threshold::Float64 = 0.7
     rng::AbstractRNG = Random.GLOBAL_RNG
