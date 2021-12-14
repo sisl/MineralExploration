@@ -39,14 +39,24 @@ function plot_history(hs::Vector, n_max::Int64=10,
     return (fig, μ, σ)
 end
 
+function gen_cases(ds0::MEInitStateDist, n::Int64, save_dir::Union{String, Nothing}=nothing)
+    states = MEState[]
+    for i = 1:n
+        push!(states, rand(ds0))
+    end
+    if isa(save_dir, String)
+        save(save_dir, "states", states)
+    end
+    return states
+end
+
 function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater,
-                policy::POMDPs.Policy, s0::MEState, ds0::MEInitStateDist;
+                policy::POMDPs.Policy, s0::MEState, b0::MEBelief;
                 display_figs::Bool=true, save_dir::Union{Nothing, String}=nothing,
                 verbose::Bool=true)
     if verbose
         println("Initializing belief...")
     end
-    b0 = POMDPs.initialize_belief(up, ds0)
     if verbose
         println("Belief Initialized!")
     end

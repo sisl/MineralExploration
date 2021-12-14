@@ -24,6 +24,7 @@ ds0 = POMDPs.initialstate_distribution(m)
 s0 = rand(ds0)
 
 up = MEBeliefUpdater(m, 1000, 2.0)
+b0 = POMDPs.initialize_belief(up, ds0)
 
 next_action = NextActionSampler()
 solver = POMCPOWSolver(tree_queries=10000,
@@ -42,4 +43,4 @@ solver = POMCPOWSolver(tree_queries=10000,
                        )
 planner = POMDPs.solve(solver, m)
 
-results = run_trial(m, up, planner, s0, ds0, save_dir="./data/single_fixed_constrained_demo/")
+results = run_trial(m, up, planner, s0, b0, save_dir="./data/single_fixed_constrained_demo/")

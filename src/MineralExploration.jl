@@ -6,6 +6,7 @@ using DataFrames
 using DelimitedFiles
 using Distributions
 using GeoStats
+using JLD
 using LinearAlgebra
 using Parameters
 using Plots
@@ -69,7 +70,8 @@ include("action_selection.jl")
 
 export
         plot_history,
-        run_trial
+        run_trial,
+        gen_cases
 include("utils.jl")
 
 end
