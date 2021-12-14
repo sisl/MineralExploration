@@ -1,5 +1,6 @@
 using Revise
 
+using DelimitedFiles
 using POMDPs
 using POMCPOW
 using Plots
@@ -12,7 +13,7 @@ N = 100
 N_INITIAL = 0
 MAX_BORES = 20
 GRID_SPACING = 1
-MAX_MOVEMENT = 0
+MAX_MOVEMENT = 10
 
 mainbody = SingleFixedNode()
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
@@ -53,6 +54,19 @@ for i = 1:N
     push!(abs_errs, results[3])
     push!(vol_stds, results[4])
     push!(n_drills, results[5])
+    s0 = results[8]
+    true_ore = s0.ore_map
+    massive_ore = s0.ore_map .>= m.massive_threshold
+    noise_ore = s0.ore_map - s0.mainbody_map
+    open("./data/single_fixed_test/true_ore.txt", "a") do io
+        writedlm(io, reshape(true_ore, :, 1))
+    end
+    open("./data/single_fixed_test/massive_ore.txt", "a") do io
+        writedlm(io, reshape(massive_ore, :, 1))
+    end
+    open("./data/single_fixed_test/noise_ore.txt", "a") do io
+        writedlm(io, reshape(noise_ore, :, 1))
+    end
 end
 
 fig, mu, sig = plot_history(distances, 10, "Distance to Center", "Distance")
@@ -94,10 +108,6 @@ lossy_abandoned = sum(abandoned.*lossy)
 
 mined_profit = sum(mined.*(ores .- m.extraction_cost))
 available_profit = sum(profitable.*(ores .- m.extraction_cost))
-
-# mean_drills = mean(D)
-# mined_drills = sum(D.*mined)/sum(mined)
-# abandoned_drills = sum(D.*abandoned)/sum(abandoned)
 
 println("Available Profit: $available_profit, Mined Profit: $mined_profit")
 println("Profitable: $(sum(profitable)), Mined: $profitable_mined, Abandoned: $profitable_abandoned")

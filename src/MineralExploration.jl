@@ -3,6 +3,7 @@ module MineralExploration
 using BeliefUpdaters
 using CSV
 using DataFrames
+using DelimitedFiles
 using Distributions
 using GeoStats
 using LinearAlgebra

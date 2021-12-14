@@ -8,15 +8,16 @@ using Statistics
 using MineralExploration
 
 N_INITIAL = 0
-MAX_BORES = 5
+MAX_BORES = 25
+MIN_BORES = 10
 GRID_SPACING = 1
-MAX_MOVEMENT = 0
+MAX_MOVEMENT = 10
 
 # mainbody = MultiVarNode()
 mainbody = SingleFixedNode()
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
-                            mainbody_gen=mainbody, max_movement=MAX_MOVEMENT)
+                            mainbody_gen=mainbody, max_movement=MAX_MOVEMENT, min_bores=MIN_BORES)
 initialize_data!(m, N_INITIAL)
 
 up = MEBeliefUpdater(m, 1000, 2.0)
@@ -38,4 +39,4 @@ solver = POMCPOWSolver(tree_queries=10000,
                        )
 planner = POMDPs.solve(solver, m)
 
-results = run_trial(m, up, planner, save_dir="./data/single_fixed_demo/")
+results = run_trial(m, up, planner, save_dir="./data/single_fixed_constrained_demo/")

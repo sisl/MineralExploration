@@ -58,15 +58,15 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
     b0_fig = plot(b0)
 
     vols = [sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
-    mean_vols = mean(vols)
-    std_vols = std(vols)
+    mean_vols = round(mean(vols), digits=2)
+    std_vols = round(std(vols), digits=2)
     if verbose
         println("Vols: $mean_vols ± $std_vols")
     end
     h = fit(Histogram, vols, [0:10:300;])
     h = normalize(h, mode=:probability)
 
-    b0_hist = plot(h, title="Belief Volumes t=0", legend=:none)
+    b0_hist = plot(h, title="Belief Volumes t=0\nμ=$mean_vols, σ=$std_vols", legend=:none)
     plot!(b0_hist, [r_massive, r_massive], [0.0, maximum(h.weights)], linecolor=:red, linewidth=3)
     if isa(save_dir, String)
         path = string(save_dir, "ore_map.png")
@@ -87,6 +87,15 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
         display(b0_fig)
         display(b0_hist)
     end
+    b_mean, b_std = MineralExploration.summarize(b0)
+    path = string(save_dir, "belief_mean.txt")
+    open(path, "w") do io
+        writedlm(io, reshape(b_mean, :, 1))
+    end
+    path = string(save_dir, "belief_std.txt")
+    open(path, "w") do io
+        writedlm(io, reshape(b_std, :, 1))
+    end
 
     last_action = :drill
     n_drills = 0
@@ -105,8 +114,8 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
 
         b_fig = plot(bp, t)
         vols = [sum(p.ore_map .>= m.massive_threshold) for p in bp.particles]
-        mean_vols = mean(vols)
-        std_vols = std(vols)
+        mean_vols = round(mean(vols), digits=2)
+        std_vols = round(std(vols), digits=2)
         if verbose
             @show t
             @show a.type
@@ -123,7 +132,7 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
 
             h = fit(Histogram, vols, [0:10:300;])
             h = normalize(h, mode=:probability)
-            b_hist = plot(h, title="Belief Volumes t=$t", legend=:none)
+            b_hist = plot(h, title="Belief Volumes t=$t\nμ=$mean_vols, σ=$std_vols", legend=:none)
             plot!(b_hist, [r_massive, r_massive], [0.0, maximum(h.weights)], linecolor=:red, linewidth=3)
             if isa(save_dir, String)
                 path = string(save_dir, "b$t.png")
@@ -135,6 +144,15 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
             if display_figs
                 display(b_fig)
                 display(b_hist)
+            end
+            b_mean, b_std = MineralExploration.summarize(bp)
+            path = string(save_dir, "belief_mean.txt")
+            open(path, "a") do io
+                writedlm(io, reshape(b_mean, :, 1))
+            end
+            path = string(save_dir, "belief_std.txt")
+            open(path, "a") do io
+                writedlm(io, reshape(b_std, :, 1))
             end
         end
     end
@@ -163,5 +181,5 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
         display(abs_err_fig)
         display(vols_fig)
     end
-    return (discounted_return, dists, abs_errs, vol_stds, n_drills, r_massive, last_action)
+    return (discounted_return, dists, abs_errs, vol_stds, n_drills, r_massive, last_action, s0)
 end

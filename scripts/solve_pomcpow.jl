@@ -1,5 +1,6 @@
 using Revise
 
+using DelimitedFiles
 using POMDPs
 using POMDPSimulators
 using POMCPOW
@@ -99,6 +100,15 @@ println("Profitable: $profitable")
 # display(fig)
 # fig = histogram(vols, bins=10 )
 # display(fig)
+
+b_mean, b_std = MineralExploration.summarize(b0)
+open("./data/belief_mean.txt", "a") do io
+    writedlm(io, reshape(b_mean, :, 1))
+end
+open("./data/belief_std.txt", "a") do io
+    writedlm(io, reshape(b_std, :, 1))
+end
+
 b_new = nothing
 a_new = nothing
 discounted_return = 0.0
@@ -152,6 +162,14 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     # println("Vars: $mean_vars ± $std_vars")
     # fig = histogram(vars, bins=10)
     # display(fig)
+    b_mean, b_std = MineralExploration.summarize(bp)
+    open("./data/belief_mean.txt", "a") do io
+        writedlm(io, reshape(b_mean, :, 1))
+    end
+    open("./data/belief_std.txt", "a") do io
+        writedlm(io, reshape(b_std, :, 1))
+    end
+
     discounted_return += POMDPs.discount(m)^(t - 1)*r
 end
 
