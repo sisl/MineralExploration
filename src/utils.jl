@@ -39,10 +39,10 @@ function plot_history(hs::Vector, n_max::Int64=10,
     return (fig, μ, σ)
 end
 
-function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMDPs.Policy;
-                display_figs::Bool=true, save_dir::Union{Nothing, String}=nothing, verbose::Bool=true)
-    ds0 = POMDPs.initialstate_distribution(m)
-    s0 = rand(ds0)
+function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater,
+                policy::POMDPs.Policy, s0::MEState, ds0::MEInitStateDist;
+                display_figs::Bool=true, save_dir::Union{Nothing, String}=nothing,
+                verbose::Bool=true)
     if verbose
         println("Initializing belief...")
     end
@@ -181,5 +181,5 @@ function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater, policy::POMD
         display(abs_err_fig)
         display(vols_fig)
     end
-    return (discounted_return, dists, abs_errs, vol_stds, n_drills, r_massive, last_action, s0)
+    return (discounted_return, dists, abs_errs, vol_stds, n_drills, r_massive, last_action)
 end

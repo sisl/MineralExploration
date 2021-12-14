@@ -20,6 +20,9 @@ m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spac
                             mainbody_gen=mainbody, max_movement=MAX_MOVEMENT, min_bores=MIN_BORES)
 initialize_data!(m, N_INITIAL)
 
+ds0 = POMDPs.initialstate_distribution(m)
+s0 = rand(ds0)
+
 up = MEBeliefUpdater(m, 1000, 2.0)
 
 next_action = NextActionSampler()
@@ -39,4 +42,4 @@ solver = POMCPOWSolver(tree_queries=10000,
                        )
 planner = POMDPs.solve(solver, m)
 
-results = run_trial(m, up, planner, save_dir="./data/single_fixed_constrained_demo/")
+results = run_trial(m, up, planner, s0, ds0, save_dir="./data/single_fixed_constrained_demo/")

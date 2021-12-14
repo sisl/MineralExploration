@@ -19,6 +19,7 @@ mainbody = SingleFixedNode()
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
                             mainbody_gen=mainbody, max_movement=MAX_MOVEMENT)
 initialize_data!(m, N_INITIAL)
+ds0 = POMDPs.initialstate_distribution(m)
 
 up = MEBeliefUpdater(m, 1000, 2.0)
 
@@ -46,7 +47,8 @@ vol_stds = Vector{Float64}[]
 n_drills = Int64[]
 for i = 1:N
     println("Running Trial $i")
-    results = run_trial(m, up, planner, save_dir=nothing, display_figs=false, verbose=false)
+    s0 = rand(ds0)
+    results = run_trial(m, up, planner, s0, ds0, save_dir=nothing, display_figs=false, verbose=false)
     push!(returns, results[1])
     push!(ores, results[6])
     push!(decisions, results[7])
@@ -54,7 +56,6 @@ for i = 1:N
     push!(abs_errs, results[3])
     push!(vol_stds, results[4])
     push!(n_drills, results[5])
-    s0 = results[8]
     true_ore = s0.ore_map
     massive_ore = s0.ore_map .>= m.massive_threshold
     noise_ore = s0.ore_map - s0.mainbody_map
