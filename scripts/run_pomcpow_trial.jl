@@ -12,9 +12,11 @@ MAX_BORES = 25
 MIN_BORES = 10
 GRID_SPACING = 1
 MAX_MOVEMENT = 10
+SAVE_DIR = "./data/demos/two_constrained_demo/"
 
-# mainbody = MultiVarNode()
-mainbody = SingleFixedNode()
+mainbody = MultiVarNode()
+# mainbody = SingleFixedNode()
+# mainbody = SingleVarNode()
 
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
                             mainbody_gen=mainbody, max_movement=MAX_MOVEMENT, min_bores=MIN_BORES)
@@ -43,4 +45,4 @@ solver = POMCPOWSolver(tree_queries=10000,
                        )
 planner = POMDPs.solve(solver, m)
 
-results = run_trial(m, up, planner, s0, b0, save_dir="./data/single_fixed_constrained_demo/")
+results = run_trial(m, up, planner, s0, b0, save_dir=SAVE_DIR)

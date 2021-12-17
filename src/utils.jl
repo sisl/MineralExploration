@@ -50,7 +50,7 @@ function gen_cases(ds0::MEInitStateDist, n::Int64, save_dir::Union{String, Nothi
     return states
 end
 
-function run_trial(m::MineralExplorationPOMDP, up::MEBeliefUpdater,
+function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
                 policy::POMDPs.Policy, s0::MEState, b0::MEBelief;
                 display_figs::Bool=true, save_dir::Union{Nothing, String}=nothing,
                 verbose::Bool=true)

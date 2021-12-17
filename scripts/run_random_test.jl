@@ -2,22 +2,54 @@ using Revise
 
 using DelimitedFiles
 using POMDPs
+using POMDPPolicies
 using POMCPOW
 using Plots
 using Statistics
 using StatsBase
+using ArgParse
 
 using MineralExploration
 
+s = ArgParseSettings()
+@add_arg_table s begin
+    "save_dir"
+        required = true
+        arg_type = String
+    "case_dir"
+        required = true
+        arg_type = String
+    "max_movement"
+        required = true
+        arg_type = String
+    "mainbody"
+        required = true
+        arg_type = String
+end
+
+parsed_args = parse_args(ARGS, s)
+
 N = 100
 N_INITIAL = 0
-MAX_BORES = 20
+MAX_BORES = 10
 GRID_SPACING = 1
-MAX_MOVEMENT = 10
-CASE_DIR = "./data/single_fixed_test_cases.jld"
-SAVE_DIR = "./data/single_fixed_constrained_test/"
+# MAX_MOVEMENT = 0
+# CASE_DIR = "./data/single_fixed_test_cases.jld"
+# SAVE_DIR = "./data/tests/random/single_fixed_unconstrained/"
 
-mainbody = SingleFixedNode()
+SAVE_DIR = parsed_args["save_dir"]
+CASE_DIR = parsed_args["case_dir"]
+MAX_MOVEMENT = parsed_args["max_movement"]
+MAINBODY_STR = parsed_args["mainbody"]
+
+if MAINBODY_STR == "single_fixed"
+    mainbody = SingleFixedNode()
+elseif MAINBODY_STR == "single_variable"
+    mainbody = SingleVarNode()
+elseif MAINBODY_STR == "two"
+    mainbody = MultiVarNode()
+end
+
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
                             mainbody_gen=mainbody, max_movement=MAX_MOVEMENT)
 initialize_data!(m, N_INITIAL)
@@ -35,19 +67,7 @@ up = MEBeliefUpdater(m, 1000, 2.0)
 b0 = POMDPs.initialize_belief(up, ds0)
 
 next_action = NextActionSampler()
-solver = POMCPOWSolver(tree_queries=1000,
-                       check_repeat_obs=true,
-                       check_repeat_act=true,
-                       next_action=next_action,
-                       k_action=2.0,
-                       alpha_action=0.25,
-                       k_observation=2.0,
-                       alpha_observation=0.1,
-                       criterion=POMCPOW.MaxUCB(100.0),
-                       final_criterion=POMCPOW.MaxQ(),
-                       estimate_value=0.0
-                       )
-planner = POMDPs.solve(solver, m)
+planner = POMDPPolicies.RandomPolicy(m)
 
 returns = Float64[]
 ores = Float64[]
