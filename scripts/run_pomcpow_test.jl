@@ -17,6 +17,7 @@ MAX_MOVEMENT = 10
 CASE_DIR = "./data/two_test_cases.jld"
 SAVE_DIR = "./data/tests/two_constrained_test/"
 
+println(typeof(test_schedule))
 # mainbody = SingleFixedNode()
 # mainbody = SingleVarNode()
 mainbody = MultiVarNode()
