@@ -6,10 +6,14 @@ using DataFrames
 using DelimitedFiles
 using Distributions
 using GeoStats
+using ImageFiltering
+using Infiltrator # DEBUG
 using JLD
+using JSON
+using Luxor
 using LinearAlgebra
 using Parameters
-using Plots
+using Plots; default(fontfamily="Computer Modern", framestyle=:box) # LaTex-style
 using POMCPOW
 using POMDPModelTools
 using POMDPSimulators
@@ -52,6 +56,14 @@ export
 include("pomdp.jl")
 
 export
+        ShapeNode,
+        CircleNode,
+        EllipseNode,
+        BlobNode,
+        MultiShapeNode
+include("shapes.jl")
+
+export
         MEBelief,
         MEBeliefUpdater
 include("beliefs.jl")
@@ -67,6 +79,14 @@ include("solver.jl")
 export
         GPNextAction
 include("action_selection.jl")
+
+export
+    standardize,
+    standardize_scale,
+    calculate_standardization,
+    save_standardization,
+    generate_ore_mass_samples
+include("standardization.jl")
 
 export
         plot_history,

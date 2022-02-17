@@ -39,16 +39,17 @@ function calc_K(geostats::GeoDist, rock_obs::RockObservations)
         pdomain = CartesianGrid{Int64}(geostats.grid_dims[1], geostats.grid_dims[2])
         γ = SphericalVariogram(sill=geostats.sill, range=geostats.variogram[6], nugget=geostats.nugget)
     end
-    table = DataFrame(ore=rock_obs.ore_quals .- geostats.mean)
+    # table = DataFrame(ore=rock_obs.ore_quals .- geostats.mean)
     domain = PointSet(rock_obs.coordinates)
-    pdata = georef(table, domain)
-    vmapping = map(pdata, pdomain, (:ore,), GeoStats.NearestMapping())[:ore]
+    # pdata = georef(table, domain)
+    # vmapping = map(pdata, pdomain, (:ore,), GeoStats.NearestMapping())[:ore]
     # dlocs = Int[]
     # for (loc, dloc) in vmapping
     #     push!(dlocs, loc)
     # end
-    dlocs = Int64[m[1] for m in vmapping]
-    𝒟d = [centroid(pdomain, i) for i in dlocs]
+    # dlocs = Int64[m[1] for m in vmapping]
+    # 𝒟d = [centroid(pdomain, i) for i in dlocs]
+    𝒟d = [GeoStats.Point(p.coords[1] + 0.5, p.coords[2] + 0.5) for p in domain]
     K = GeoStats.sill(γ) .- GeoStats.pairwise(γ, 𝒟d)
     return K
 end
@@ -330,17 +331,19 @@ function std_var(b::MEBelief)
     std(vars)
 end
 
-function Plots.plot(b::MEBelief, t=nothing)
+function Plots.plot(b::MEBelief, t=nothing; cmap=:viridis)
     mean, var = summarize(b)
     if t == nothing
-        mean_title = "Belief Mean"
-        std_title = "Belief StdDev"
+        mean_title = "belief mean"
+        std_title = "belief std"
     else
-        mean_title = "Belief Mean t=$t"
-        std_title = "Belief StdDev t=$t"
+        mean_title = "belief mean t=$t"
+        std_title = "belief std t=$t"
     end
-    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none)
-    fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2))
+    xl = (1,size(mean,1))
+    yl = (1,size(mean,2))
+    fig1 = heatmap(mean[:,:,1], title=mean_title, fill=true, clims=(0.0, 1.0), legend=:none, ratio=1, c=cmap, xlims=xl, ylims=yl)
+    fig2 = heatmap(sqrt.(var[:,:,1]), title=std_title, fill=true, legend=:none, clims=(0.0, 0.2), ratio=1, c=cmap, xlims=xl, ylims=yl)
     if !isempty(b.rock_obs.ore_quals)
         x = b.rock_obs.coordinates[2, :]
         y = b.rock_obs.coordinates[1, :]
@@ -355,6 +358,6 @@ function Plots.plot(b::MEBelief, t=nothing)
             end
         end
     end
-    fig = plot(fig1, fig2, layout=(1,2))
+    fig = plot(fig1, fig2, layout=(1,2), size=(600,250))
     return fig
 end

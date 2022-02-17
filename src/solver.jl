@@ -48,7 +48,7 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
         lcb = mean_volume - volume_std*pomdp.extraction_lcb
         ucb = mean_volume + volume_std*pomdp.extraction_ucb
         stop_bound = lcb >= pomdp.extraction_cost || ucb <= pomdp.extraction_cost
-        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0 && stop_bound
+        if MEAction(type=:stop) ∈ action_set && (length(tried_idxs) <= 0 || length(action_set) == 1) && stop_bound
             return MEAction(type=:stop)
         else
             mean, var = summarize(b)
@@ -71,7 +71,7 @@ function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPO
             return MEAction(type=:mine)
         end
     else
-        if MEAction(type=:stop) ∈ action_set && length(tried_idxs) <= 0
+        if MEAction(type=:stop) ∈ action_set && (length(tried_idxs) <= 0 || length(action_set) == 1)
             return MEAction(type=:stop)
         else
             ore_maps = Array{Float64, 3}[]

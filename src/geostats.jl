@@ -27,7 +27,7 @@ end
 @with_kw struct GeoStatsDistribution <: GeoDist
     grid_dims::Tuple{Int64, Int64, Int64} = (50, 50, 1)
     data::RockObservations = RockObservations()
-    domain::CartesianGrid{2, Int64} = CartesianGrid{Int64}(50, 50)
+    domain::CartesianGrid{2, Int64} = CartesianGrid{Int64}(grid_dims[1], grid_dims[2])
     mean::Float64 = 0.3
     variogram::Variogram = SphericalVariogram(sill=0.005, range=30.0,
                                             nugget=0.0001)

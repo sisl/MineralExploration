@@ -2,9 +2,13 @@
 @with_kw struct MineralExplorationPOMDP <: POMDP{MEState, MEAction, MEObservation}
     reservoir_dims::Tuple{Float64, Float64, Float64} = (2000.0, 2000.0, 30.0) #  lat x lon x thick in meters
     grid_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) #  dim x dim grid size
+    high_fidelity_dim::Tuple{Int64, Int64, Int64} = (50, 50, 1) # grid dimensions for high fidelity case
+    ratio::Tuple{Float64, Float64, Float64} = grid_dim ./ high_fidelity_dim # scaling ratio relative to default grid dimensions of 50x50
+    dim_scale::Float64 = 1/prod(ratio) # scale ore value per cell
     max_bores::Int64 = 10 # Maximum number of bores
     min_bores::Int64 = 1 # Minimum number of bores
-    max_movement::Int64 = 0 # Maximum distanace between bores. 0 denotes no restrictions
+    original_max_movement::Int64 = 0 # Original maximum distanace between bores in the default 50x50 grid. 0 denotes no restrictions
+    max_movement::Int64 = round(Int, original_max_movement*ratio[1]) # Maximum distanace between bores (scaled based on the ratio). 0 denotes no restrictions
     initial_data::RockObservations = RockObservations() # Initial rock observations
     delta::Int64 = 1 # Minimum distance between wells (grid coordinates)
     grid_spacing::Int64 = 0 # Number of cells in between each cell in which wells can be placed
@@ -18,16 +22,19 @@
     geodist_type::Type = GeoStatsDistribution # GeoDist type for geo noise
     gp_mean::Float64 = 0.25
     mainbody_weight::Float64 = 0.6
-    mainbody_gen::MainbodyGen = SingleFixedNode(grid_dims=grid_dim)
+    true_mainbody_gen::MainbodyGen = BlobNode(grid_dims=high_fidelity_dim) # high-fidelity true mainbody generator
+    mainbody_gen::MainbodyGen = BlobNode(grid_dims=grid_dim)
     massive_threshold::Float64 = 0.7
+    target_mass_params::Tuple{Real, Real} = (extraction_cost, extraction_cost/3) # target mean and std when standardizing ore mass distributions
     rng::AbstractRNG = Random.GLOBAL_RNG
 end
 
-function GeoStatsDistribution(p::MineralExplorationPOMDP)
+function GeoStatsDistribution(p::MineralExplorationPOMDP; truth=false)
+    grid_dims = truth ? p.high_fidelity_dim : p.grid_dim
     variogram = SphericalVariogram(sill=p.variogram[1], range=p.variogram[2],
                                     nugget=p.variogram[3])
-    domain = CartesianGrid{Int64}(p.grid_dim[1], p.grid_dim[2])
-    return GeoStatsDistribution(grid_dims=p.grid_dim,
+    domain = CartesianGrid{Int64}(grid_dims[1], grid_dims[2])
+    return GeoStatsDistribution(grid_dims=grid_dims,
                                 data=deepcopy(p.initial_data),
                                 domain=domain,
                                 mean=p.gp_mean,
@@ -98,37 +105,47 @@ POMDPs.discount(::MineralExplorationPOMDP) = 0.99
 POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.decided
 
 struct MEInitStateDist
+    true_gp_distribution::GeoDist
     gp_distribution::GeoDist
     mainbody_weight::Float64
+    true_mainbody_gen::MainbodyGen
     mainbody_gen::MainbodyGen
     massive_thresh::Float64
+    dim_scale::Float64
+    target_μ::Float64
+    target_σ::Float64
     rng::AbstractRNG
 end
 
 function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP)
+    true_gp_dist = m.geodist_type(m; truth=true)
     gp_dist = m.geodist_type(m)
-    MEInitStateDist(gp_dist, m.mainbody_weight, m.mainbody_gen,
-                    m.massive_threshold, m.rng)
+    MEInitStateDist(true_gp_dist, gp_dist, m.mainbody_weight,
+                    m.true_mainbody_gen, m.mainbody_gen,
+                    m.massive_threshold, m.dim_scale,
+                    m.target_mass_params[1], m.target_mass_params[2], m.rng)
 end
 
-function Base.rand(d::MEInitStateDist, n::Int=1)
-    gp_ore_maps = Base.rand(d.rng, d.gp_distribution, n)
+function Base.rand(d::MEInitStateDist, n::Int=1; truth::Bool=false, apply_scale::Bool=false)
+    gp_dist = truth ? d.true_gp_distribution : d.gp_distribution
+    gp_ore_maps = Base.rand(d.rng, gp_dist, n)
     if n == 1
         gp_ore_maps = Array{Float64, 3}[gp_ore_maps]
     end
 
     states = MEState[]
-    x_dim = d.gp_distribution.grid_dims[1]
-    y_dim = d.gp_distribution.grid_dims[2]
+    x_dim = gp_dist.grid_dims[1]
+    y_dim = gp_dist.grid_dims[2]
+    mainbody_gen = truth ? d.true_mainbody_gen : d.mainbody_gen
     for i = 1:n
-        lode_map, lode_params = rand(d.rng, d.mainbody_gen)
-        max_lode = maximum(lode_map)
-        lode_map ./= max_lode
-        lode_map .*= d.mainbody_weight
-        lode_map = repeat(lode_map, outer=(1, 1, 1))
+        lode_map, lode_params = rand(d.rng, mainbody_gen)
+        lode_map = normalize_and_weight(lode_map, d.mainbody_weight)
 
         gp_ore_map = gp_ore_maps[i]
         ore_map = lode_map + gp_ore_map
+        if apply_scale
+            ore_map, lode_params = scale_sample(d, mainbody_gen, lode_map, gp_ore_map, lode_params; target_μ=d.target_μ, target_σ=d.target_σ)
+        end
         state = MEState(ore_map, lode_params, lode_map,
                 RockObservations(), false, false)
         push!(states, state)
@@ -142,9 +159,23 @@ end
 
 Base.rand(rng::AbstractRNG, d::MEInitStateDist, n::Int=1) = rand(d, n)
 
+function normalize_and_weight(lode_map::AbstractArray, mainbody_weight::Real)
+    max_lode = maximum(lode_map)
+    lode_map ./= max_lode
+    lode_map .*= mainbody_weight
+    lode_map = repeat(lode_map, outer=(1, 1, 1))
+    return lode_map
+end
+
+function calc_massive(ore_map::AbstractArray, massive_threshold::Real, dim_scale::Real)
+    return dim_scale*sum(ore_map .>= massive_threshold)
+end
+
 function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
-    s_massive = s.ore_map .>= m.massive_threshold
-    r = m.strike_reward*sum(s_massive)
+    truth = size(s.mainbody_map) == m.high_fidelity_dim
+    dim_scale = truth ? 1 : m.dim_scale
+    r_massive = calc_massive(s.ore_map, m.massive_threshold, dim_scale)
+    r = m.strike_reward*r_massive
     r -= m.extraction_cost
     return r
 end
@@ -175,7 +206,7 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
         stopped_p = true
         decided_p = true
     elseif a_type ==:drill && !stopped && !decided
-        ore_obs = s.ore_map[a.coords[1], a.coords[2], 1]
+        ore_obs = high_fidelity_obs(m, s.ore_map, a)
         a = reshape(Int64[a.coords[1] a.coords[2]], 2, 1)
         r = -m.drill_cost
         rock_obs_p = deepcopy(s.rock_obs)
@@ -255,7 +286,7 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
     if a.type != :drill
         w = o.ore_quality == nothing ? 1.0 : 0.0
     else
-        o_mainbody = s.mainbody_map[a.coords[1], a.coords[2], 1]
+        o_mainbody = high_fidelity_obs(m, s.mainbody_map, a)
         o_gp = (o.ore_quality - o_mainbody)
         mu = m.gp_mean
         sigma = sqrt(m.variogram[1])
@@ -263,4 +294,13 @@ function POMDPModelTools.obs_weight(m::MineralExplorationPOMDP, s::MEState,
         w = pdf(point_dist, o_gp)
     end
     return w
+end
+
+function high_fidelity_obs(m::MineralExplorationPOMDP, subsurface_map::Array, a::MEAction)
+    if size(subsurface_map) == m.grid_dim
+        return subsurface_map[a.coords[1], a.coords[2], 1]
+    else
+        hf_coords = trunc.(Int, a.coords.I ./ m.ratio[1:2])
+        return subsurface_map[hf_coords[1], hf_coords[2], 1]
+    end
 end
