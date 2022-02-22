@@ -63,7 +63,7 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
     end
 
     ore_fig = plot_ore_map(s0.ore_map, cmap)
-    mass_fig, r_massive = plot_mass_map(m, s0.ore_map, cmap; truth=true)
+    mass_fig, r_massive = plot_mass_map(s0.ore_map, m.massive_threshold, cmap; truth=true)
     b0_fig = plot(b0; cmap=cmap)
     b0_hist, vols, mean_vols, std_vols = plot_volume(m, b0, r_massive; t=0, verbose=verbose)
 
@@ -91,13 +91,15 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
     end
 
     b_mean, b_std = MineralExploration.summarize(b0)
-    path = string(save_dir, "belief_mean.txt")
-    open(path, "w") do io
-        writedlm(io, reshape(b_mean, :, 1))
-    end
-    path = string(save_dir, "belief_std.txt")
-    open(path, "w") do io
-        writedlm(io, reshape(b_std, :, 1))
+    if !isnothing(save_dir)
+        path = string(save_dir, "belief_mean.txt")
+        open(path, "w") do io
+            writedlm(io, reshape(b_mean, :, 1))
+        end
+        path = string(save_dir, "belief_std.txt")
+        open(path, "w") do io
+            writedlm(io, reshape(b_std, :, 1))
+        end
     end
 
     last_action = :drill
@@ -202,11 +204,11 @@ function plot_ore_map(ore_map, cmap=:viridis)
     return heatmap(ore_map[:,:,1], title="true ore field", fill=true, clims=(0.0, 1.0), aspect_ratio=1, xlims=xl, ylims=yl, c=cmap)
 end
 
-function plot_mass_map(m::MineralExplorationPOMDP, ore_map, cmap=:viridis; truth=false)
+function plot_mass_map(ore_map, massive_threshold, cmap=:viridis; dim_scale=1, truth=false)
     xl = (0.5, size(ore_map,1)+0.5)
     yl = (0.5, size(ore_map,2)+0.5)
-    s_massive = ore_map .>= m.massive_threshold
-    dim_scale = truth ? 1 : m.dim_scale
+    s_massive = ore_map .>= massive_threshold
+    dim_scale = truth ? 1 : dim_scale
     r_massive = dim_scale*sum(s_massive)
     mass_fig = heatmap(s_massive[:,:,1], title="massive ore deposits: $(round(r_massive, digits=2))", fill=true, clims=(0.0, 1.0), aspect_ratio=1, xlims=xl, ylims=yl, c=cmap)
     return (mass_fig, r_massive)
