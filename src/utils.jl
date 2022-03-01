@@ -91,7 +91,7 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
     end
 
     b_mean, b_std = MineralExploration.summarize(b0)
-    if !isnothing(save_dir)
+    if isa(save_dir, String)
         path = string(save_dir, "belief_mean.txt")
         open(path, "w") do io
             writedlm(io, reshape(b_mean, :, 1))
@@ -150,13 +150,15 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
                 display(b_hist)
             end
             b_mean, b_std = MineralExploration.summarize(bp)
-            path = string(save_dir, "belief_mean.txt")
-            open(path, "a") do io
-                writedlm(io, reshape(b_mean, :, 1))
-            end
-            path = string(save_dir, "belief_std.txt")
-            open(path, "a") do io
-                writedlm(io, reshape(b_std, :, 1))
+            if isa(save_dir, String)
+                path = string(save_dir, "belief_mean.txt")
+                open(path, "a") do io
+                    writedlm(io, reshape(b_mean, :, 1))
+                end
+                path = string(save_dir, "belief_std.txt")
+                open(path, "a") do io
+                    writedlm(io, reshape(b_std, :, 1))
+                end
             end
         end
     end

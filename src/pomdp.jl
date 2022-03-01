@@ -300,6 +300,7 @@ function high_fidelity_obs(m::MineralExplorationPOMDP, subsurface_map::Array, a:
     if size(subsurface_map) == m.grid_dim
         return subsurface_map[a.coords[1], a.coords[2], 1]
     else
+        # truncate drill coordinates to map to high-fidelity grid
         hf_coords = trunc.(Int, a.coords.I ./ m.ratio[1:2])
         return subsurface_map[hf_coords[1], hf_coords[2], 1]
     end
