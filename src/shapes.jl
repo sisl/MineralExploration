@@ -223,7 +223,7 @@ function perturb_sample(mainbody::BlobNode, mainbody_params, noise)
     p_center = center .+ rand(𝒟_noise, 2)
     clamp2dims!(p_center, grid_dims)
     p_N = clamp(N + rand(𝒟_noise), 1, Inf)
-    p_factor = clamp(factor + rand(𝒟_noise), 1e-15, Inf)
+    p_factor = factor + rand(𝒟_noise)
     p_points = [Luxor.Point(p.x + rand(𝒟_noise), p.y + rand(𝒟_noise)) for p in points]
     p_angle = angle + deg2rad(rand(𝒟_noise))
 
