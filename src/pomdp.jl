@@ -177,6 +177,23 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, b::MEBe
         stopped_p = n_bores >= m.max_bores
         decided_p = false
         obs = MEObservation(ore_obs, stopped_p, false)
+        @info "calculating reward"
+        #bp = update(b.up, b, a, obs)
+
+        #counts_b = [sum(particle.ore_map .>= m.massive_threshold) for particle in b.particles]
+        #counts_bp = [sum(particle.ore_map .>= m.massive_threshold) for particle in bp.particles]
+        #U_b = kde(counts_b)
+        #pdf_b = pdf(U_b, 0:25:400)
+        #U_bp = kde(counts_bp)
+        #pdf_bp = pdf(U_bp, 0:25:400)
+
+        #divergence = kldivergence(pdf_b, pdf_bp)
+        #divergence = js_divergence(pdf_b, pdf_bp)
+        #@info divergence
+        #@info m.c_exp
+        r = -m.drill_cost #+ m.exp_c*divergence
+        @info r
+
     else
         error("Invalid Action! Action: $(a.type), Stopped: $stopped, Decided: $decided")
     end
