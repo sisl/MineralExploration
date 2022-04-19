@@ -98,7 +98,7 @@ function generate_ore_mass_samples(m; N=1000, apply_scale=true)
     masses = []
     params = []
     for i in 1:N
-        s0 = rand(ds0; truth=true, apply_scale=apply_scale)
+        s0 = rand(m.rng, ds0; truth=true, apply_scale=apply_scale)
         r_massive = calc_massive(s0.ore_map, m.massive_threshold, m.dim_scale)
         push!(masses, r_massive)
         push!(params, s0.mainbody_params)

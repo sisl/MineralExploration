@@ -42,7 +42,7 @@ end
 function gen_cases(ds0::MEInitStateDist, n::Int64, save_dir::Union{String, Nothing}=nothing)
     states = MEState[]
     for i = 1:n
-        push!(states, rand(ds0))
+        push!(states, rand(ds0.rng, ds0))
     end
     if isa(save_dir, String)
         save(save_dir, "states", states)
@@ -114,7 +114,7 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
     if verbose
         println("Entering Simulation...")
     end
-    for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_steps=50)
+    for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_steps=50, rng=m.rng)
         discounted_return += POMDPs.discount(m)^(t - 1)*r
         dist = sqrt(sum(([a.coords[1], a.coords[2]] .- 25.0).^2)) #TODO only for single fixed
         last_action = a.type

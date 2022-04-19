@@ -7,7 +7,7 @@ mutable struct LUParams
     slocs::Vector{Int64}
     lugs::LUGS
 end
-
+#function LUParams(rng::AbstractRNG, γ::Variogram, domain::CartesianGrid)
 function LUParams(γ::Variogram, domain::CartesianGrid)
     z₁ = Float64[0.0]
     d₂ = Float64[0.0]
@@ -20,6 +20,7 @@ function LUParams(γ::Variogram, domain::CartesianGrid)
     K = Symmetric(C₂₂)
     K += γ.nugget.*Matrix(I, size(K))
     L₂₂ = cholesky(K).L
+    #lugs = LUGS(:ore => (mean=0.0, variogram=γ,),rng=rng)
     lugs = LUGS(:ore => (mean=0.0, variogram=γ,))
     return LUParams(C₂₂, A₂₁, L₁₁, L₂₂, dlocs, slocs, lugs)
 end
@@ -31,6 +32,8 @@ end
     mean::Float64 = 0.3
     variogram::Variogram = SphericalVariogram(sill=0.005, range=30.0,
                                             nugget=0.0001)
+    #rng::AbstractRNG = Random.GLOBAL_RNG
+    #lu_params::LUParams = LUParams(rng, variogram, domain)
     lu_params::LUParams = LUParams(variogram, domain)
 end
 

@@ -98,15 +98,17 @@ Base.rand(shape::CircleNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs.
 """
 Perturb shape by adding `noise` to its parameters.
 """
-function perturb_sample(mainbody::CircleNode, mainbody_params, noise)
+perturb_sample(mainbody::CircleNode, mainbody_params, noise) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise)
+
+function perturb_sample(rng::Random.AbstractRNG, mainbody::CircleNode, mainbody_params, noise)
     grid_dims = mainbody.grid_dims
     center, radius, σ = mainbody_params
     noise_scale = grid_dims[1] / 50
     𝒟_noise = Distributions.Uniform(-noise_scale*noise, noise_scale*noise)
 
-    p_center = center .+ rand(𝒟_noise, 2)
+    p_center = center .+ rand(rng, 𝒟_noise, 2)
     clamp2dims!(p_center, grid_dims)
-    p_radius = clamp(radius + rand(𝒟_noise), 0.5, Inf)
+    p_radius = clamp(radius + rand(rng, 𝒟_noise), 0.5, Inf)
 
     p_shape = CircleNode(grid_dims=grid_dims, center=p_center, radius=p_radius)
     p_mainbody = generate_shape_matrix(p_shape; σ=σ)
@@ -139,10 +141,10 @@ end
 
 function Base.rand(rng::Random.AbstractRNG, shape::EllipseNode; σ=σ_blur(shape.grid_dims))
     grid_dims = shape.grid_dims
-    center = isa(shape.center, Distribution) ? rand(shape.center) : shape.center
-    width = isa(shape.width, Distribution) ? rand(shape.width) : shape.width
-    height = isa(shape.height, Distribution) ? rand(shape.height) : shape.height
-    angle = isa(shape.angle, Distribution) ? rand(shape.angle) : shape.angle
+    center = isa(shape.center, Distribution) ? rand(rng, shape.center) : shape.center
+    width = isa(shape.width, Distribution) ? rand(rng, shape.width) : shape.width
+    height = isa(shape.height, Distribution) ? rand(rng, shape.height) : shape.height
+    angle = isa(shape.angle, Distribution) ? rand(rng, shape.angle) : shape.angle
     shape = EllipseNode(grid_dims=grid_dims, center=center, width=width, height=height, angle=angle)
     params = [center, width, height, angle, σ]
     return (generate_shape_matrix(shape; σ=σ), params)
@@ -150,17 +152,19 @@ end
 
 Base.rand(shape::EllipseNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs...)
 
-function perturb_sample(mainbody::EllipseNode, mainbody_params, noise)
+perturb_sample(mainbody::EllipseNode, mainbody_params, noise) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise)
+
+function perturb_sample(rng::Random.AbstractRNG, mainbody::EllipseNode, mainbody_params, noise)
     grid_dims = mainbody.grid_dims
     center, width, height, angle, σ = mainbody_params
     noise_scale = grid_dims[1] / 50
     𝒟_noise = Distributions.Uniform(-noise_scale*noise, noise_scale*noise)
 
-    p_center = center .+ rand(𝒟_noise, 2)
+    p_center = center .+ rand(rng, 𝒟_noise, 2)
     clamp2dims!(p_center, grid_dims)
-    p_width = clamp(width + rand(𝒟_noise), 0.5, Inf)
-    p_height = clamp(height + rand(𝒟_noise), 0.5, Inf)
-    p_angle = angle + deg2rad(rand(𝒟_noise))
+    p_width = clamp(width + rand(rng, 𝒟_noise), 0.5, Inf)
+    p_height = clamp(height + rand(rng, 𝒟_noise), 0.5, Inf)
+    p_angle = angle + deg2rad(rand(rng, 𝒟_noise))
 
     p_shape = EllipseNode(grid_dims=grid_dims, center=p_center, width=p_width, height=p_height, angle=p_angle)
     p_mainbody = generate_shape_matrix(p_shape; σ=σ)
@@ -195,18 +199,18 @@ end
 
 function Base.rand(rng::Random.AbstractRNG, shape::BlobNode; σ=σ_blur(shape.grid_dims))
     grid_dims = shape.grid_dims
-    center = isa(shape.center, Distribution) ? rand(shape.center) : shape.center
-    N = isa(shape.N, Distribution) || isa(shape.N, AbstractArray) ? rand(shape.N) : shape.N
-    factor = isa(shape.factor, Distribution) || isa(shape.factor, AbstractArray) ? rand(shape.factor) : shape.factor
+    center = isa(shape.center, Distribution) ? rand(rng, shape.center) : shape.center
+    N = isa(shape.N, Distribution) || isa(shape.N, AbstractArray) ? rand(rng, shape.N) : shape.N
+    factor = isa(shape.factor, Distribution) || isa(shape.factor, AbstractArray) ? rand(rng, shape.factor) : shape.factor
     if isnothing(shape.points)
-        pts = polysortbyangle(randompointarray(
+        pts = polysortbyangle(randompointarray(rng,
             Luxor.Point(-grid_dims[1]/factor,-grid_dims[2]/factor),
             Luxor.Point(grid_dims[1]/factor, grid_dims[2]/factor),
             N))
     else
         pts = shape.points
     end
-    angle = isa(shape.angle, Distribution) ? rand(shape.angle) : shape.angle
+    angle = isa(shape.angle, Distribution) ? rand(rng, shape.angle) : shape.angle
     shape = BlobNode(grid_dims=grid_dims, center=center, N=N, factor=factor, points=pts, angle=angle)
     params = [center, N, factor, pts, angle, σ]
     return (generate_shape_matrix(shape; σ=σ), params)
@@ -214,18 +218,20 @@ end
 
 Base.rand(shape::BlobNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs...)
 
-function perturb_sample(mainbody::BlobNode, mainbody_params, noise)
+perturb_sample(mainbody::BlobNode, mainbody_params, noise) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise)
+
+function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_params, noise)
     grid_dims = mainbody.grid_dims
     center, N, factor, points, angle, σ = mainbody_params
     noise_scale = grid_dims[1] / 50
     𝒟_noise = Distributions.Uniform(-noise_scale*noise, noise_scale*noise)
 
-    p_center = center .+ rand(𝒟_noise, 2)
+    p_center = center .+ rand(rng, 𝒟_noise, 2)
     clamp2dims!(p_center, grid_dims)
-    p_N = clamp(N + rand(𝒟_noise), 1, Inf)
-    p_factor = factor + rand(𝒟_noise)
-    p_points = [Luxor.Point(p.x + rand(𝒟_noise), p.y + rand(𝒟_noise)) for p in points]
-    p_angle = angle + deg2rad(rand(𝒟_noise))
+    p_N = clamp(N + rand(rng, 𝒟_noise), 1, Inf)
+    p_factor = clamp(factor + rand(rng, 𝒟_noise), 1, Inf)
+    p_points = [Luxor.Point(p.x + rand(rng, 𝒟_noise), p.y + rand(rng, 𝒟_noise)) for p in points]
+    p_angle = angle + deg2rad(rand(rng, 𝒟_noise))
 
     p_shape = BlobNode(grid_dims=grid_dims, center=p_center, N=p_N, factor=p_factor, points=p_points, angle=p_angle)
     p_mainbody = generate_shape_matrix(p_shape; σ=σ)
@@ -259,10 +265,10 @@ end
 
 function Base.rand(rng::Random.AbstractRNG, shape::RectangleNode; σ=σ_blur(shape.grid_dims))
     grid_dims = shape.grid_dims
-    center = isa(shape.center, Distribution) ? rand(shape.center) : shape.center
-    width = isa(shape.width, Distribution) ? rand(shape.width) : shape.width
-    height = isa(shape.height, Distribution) ? rand(shape.height) : shape.height
-    angle = isa(shape.angle, Distribution) ? rand(shape.angle) : shape.angle
+    center = isa(shape.center, Distribution) ? rand(rng, shape.center) : shape.center
+    width = isa(shape.width, Distribution) ? rand(rng, shape.width) : shape.width
+    height = isa(shape.height, Distribution) ? rand(rng, shape.height) : shape.height
+    angle = isa(shape.angle, Distribution) ? rand(rng, shape.angle) : shape.angle
     shape = RectangleNode(grid_dims=grid_dims, center=center, width=width, height=height, angle=angle)
     params = [center, width, height, angle, σ]
     return (generate_shape_matrix(shape; σ=σ), params)
@@ -270,17 +276,19 @@ end
 
 Base.rand(shape::RectangleNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs...)
 
-function perturb_sample(mainbody::RectangleNode, mainbody_params, noise)
+perturb_sample(mainbody::RectangleNode, mainbody_params, noise) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise)
+
+function perturb_sample(rng::Random.AbstractRNG, mainbody::RectangleNode, mainbody_params, noise)
     grid_dims = mainbody.grid_dims
     center, width, height, angle, σ = mainbody_params
     noise_scale = grid_dims[1] / 50
     𝒟_noise = Distributions.Uniform(-noise_scale*noise, noise_scale*noise)
 
-    p_center = center .+ rand(𝒟_noise, 2)
+    p_center = center .+ rand(rng, 𝒟_noise, 2)
     clamp2dims!(p_center, grid_dims)
-    p_width = clamp(width + rand(𝒟_noise), 0.5, Inf)
-    p_height = clamp(height + rand(𝒟_noise), 0.5, Inf)
-    p_angle = angle + deg2rad(rand(𝒟_noise))
+    p_width = clamp(width + rand(rng, 𝒟_noise), 0.5, Inf)
+    p_height = clamp(height + rand(rng, 𝒟_noise), 0.5, Inf)
+    p_angle = angle + deg2rad(rand(rng, 𝒟_noise))
 
     p_shape = RectangleNode(grid_dims=grid_dims, center=p_center, width=p_width, height=p_height, angle=p_angle)
     p_mainbody = generate_shape_matrix(p_shape; σ=σ)
@@ -317,11 +325,13 @@ end
 
 Base.rand(shape::MultiShapeNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs...)
 
-function perturb_sample(mainbody::MultiShapeNode, mainbody_params, noise)
+perturb_sample(mainbody::MultiShapeNode, mainbody_params, noise) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise)
+
+function perturb_sample(rng::Random.AbstractRNG, mainbody::MultiShapeNode, mainbody_params, noise)
     p_mainbody = []
     p_mainbody_params = []
     for (i,s) in enumerate(mainbody.shapes)
-        p_mainbody_s, p_mainbody_params_s = perturb_sample(s, mainbody_params[i], noise)
+        p_mainbody_s, p_mainbody_params_s = perturb_sample(rng, s, mainbody_params[i], noise)
         push!(p_mainbody, p_mainbody_s)
         push!(p_mainbody_params, p_mainbody_params_s)
     end

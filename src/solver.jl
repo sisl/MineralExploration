@@ -61,7 +61,7 @@ end
 function POMCPOW.next_action(obj::NextActionSampler, pomdp::MineralExplorationPOMDP,
                             b::POMCPOW.StateBelief, h)
     o = b.sr_belief.o
-    # s = rand(b.sr_belief.dist)[1]
+    # s = rand(pomdp.rng, b.sr_belief.dist)[1]
     tried_idxs = h.tree.tried[h.node]
     action_set = POMDPs.actions(pomdp, b)
     if o.stopped
@@ -122,7 +122,7 @@ function POMCPOW.BasicPOMCP.extract_belief(p::MEBeliefUpdater, node::POMCPOW.Bel
         push!(acts, a)
         push!(obs, o)
     end
-    return MEBelief(coords, stopped, particles, acts, obs)
+    return MEBelief(coords, stopped, particles, acts, obs, p)
 end
 
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)

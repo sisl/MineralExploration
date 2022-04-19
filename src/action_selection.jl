@@ -90,7 +90,8 @@ function POMCPOW.next_action(o::GPNextAction, pomdp::MineralExplorationPOMDP,
     elseif o.init_a != nothing
         a = POMCPOW.next_action(o.init_a, pomdp, b, h)
     else
-        a = rand(actions)
+        a = rand(pomdp.rng,actions)
+        #a = rand(actions)
     end
     return a
 end
@@ -113,7 +114,8 @@ function POMCPOW.next_action(o::GPNextAction, pomdp::MineralExplorationPOMDP,
     elseif o.init_a != nothing
         a = POMCPOW.next_action(o.init_a, pomdp, b, h)
     else
-        a = rand(actions)
+        a = rand(pomdp.rng,actions)
+        #a = rand(actions)
     end
     return a
 end

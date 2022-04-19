@@ -5,11 +5,14 @@ using CSV
 using DataFrames
 using DelimitedFiles
 using Distributions
+using Distances # for KL and JS
 using GeoStats
 using ImageFiltering
-using Infiltrator # DEBUG
+using Infiltrator # for debugging
+using Interpolations
 using JLD
 using JSON
+using KernelDensity
 using Luxor
 using LinearAlgebra
 using Parameters
@@ -22,6 +25,7 @@ using Random
 using StatsBase
 using StatsPlots
 using Statistics
+using OrderedCollections
 
 
 export
@@ -29,7 +33,11 @@ export
         MEObservation,
         MEAction,
         RockObservations,
-        GeoDist
+        GeoDist,
+        MineralExplorationPOMDP,
+        MEInitStateDist,
+        MEBelief,
+        MainbodyGen
 include("common.jl")
 
 export
@@ -43,15 +51,16 @@ export
 include("gslib.jl")
 
 export
-        MainbodyGen,
         SingleFixedNode,
         SingleVarNode,
         MultiVarNode
 include("mainbody.jl")
 
 export
-        MineralExplorationPOMDP,
-        MEInitStateDist,
+        MEBeliefUpdater
+include("beliefs.jl")
+
+export
         initialize_data!
 include("pomdp.jl")
 
@@ -62,11 +71,6 @@ export
         BlobNode,
         MultiShapeNode
 include("shapes.jl")
-
-export
-        MEBelief,
-        MEBeliefUpdater
-include("beliefs.jl")
 
 export
         NextActionSampler,

@@ -1,13 +1,4 @@
 
-struct MEBelief{G}
-    particles::Vector{MEState} # Vector of vars & lode maps
-    rock_obs::RockObservations
-    acts::Vector{MEAction}
-    obs::Vector{MEObservation}
-    stopped::Bool
-    decided::Bool
-    geostats::G #GSLIB or GeoStats
-end
 
 struct MEBeliefUpdater{G} <: POMDPs.Updater
     m::MineralExplorationPOMDP
@@ -19,16 +10,28 @@ end
 
 function MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0)
     geostats = m.geodist_type(m)
-    return MEBeliefUpdater(m, geostats, n, noise, Random.GLOBAL_RNG)
+    return MEBeliefUpdater(m, geostats, n, noise, m.rng)
+end
+
+
+struct MEBelief{G}
+    particles::Vector{MEState} # Vector of vars & lode maps
+    rock_obs::RockObservations
+    acts::Vector{MEAction}
+    obs::Vector{MEObservation}
+    stopped::Bool
+    decided::Bool
+    geostats::G #GSLIB or GeoStats
+    up::MEBeliefUpdater ## include the belief updater
 end
 
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
-    particles = rand(d, up.n)
+    particles = rand(up.rng, d, up.n)
     init_rocks = up.m.initial_data
     rock_obs = RockObservations(init_rocks.ore_quals, init_rocks.coordinates)
     acts = MEAction[]
     obs = MEObservation[]
-    return MEBelief(particles, rock_obs, acts, obs, false, false, up.geostats)
+    return MEBelief(particles, rock_obs, acts, obs, false, false, up.geostats, up)
 end
 
 function calc_K(geostats::GeoDist, rock_obs::RockObservations)
@@ -184,7 +187,7 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
     bp_decided = o.decided
 
     return MEBelief(bp_particles, bp_rock, bp_acts, bp_obs, bp_stopped,
-                    bp_decided, bp_geostats)
+                    bp_decided, bp_geostats, up)
 end
 
 function Base.rand(rng::AbstractRNG, b::MEBelief)
@@ -213,7 +216,7 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
     if b.stopped
         return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
     else
-        action_set = Set(POMDPs.actions(m))
+        action_set = OrderedSet(POMDPs.actions(m))
         n_initial = length(m.initial_data)
         if !isempty(b.rock_obs.ore_quals)
             n_obs = length(b.rock_obs.ore_quals) - n_initial
@@ -233,8 +236,8 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
                     end
                 end
                 push!(reachable_acts, MEAction(type=:stop))
-                reachable_acts = Set(reachable_acts)
-                # reachable_acts = Set([MEAction(coords=coord) for coord in collect(reachable_coords)])
+                reachable_acts = OrderedSet(reachable_acts)
+                # reachable_acts = OrderedSet([MEAction(coords=coord) for coord in collect(reachable_coords)])
                 action_set = intersect(reachable_acts, action_set)
             end
             for i=1:n_obs
@@ -242,7 +245,7 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::MEBelief)
                 x = Int64(coord[1])
                 y = Int64(coord[2])
                 keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
-                keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
+                keepout_acts = OrderedSet([MEAction(coords=coord) for coord in keepout])
                 setdiff!(action_set, keepout_acts)
             end
             if n_obs < m.min_bores
@@ -260,11 +263,11 @@ end
 
 function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
     o = b.sr_belief.o
-    s = rand(b.sr_belief.dist)[1]
+    s = rand(m.rng, b.sr_belief.dist)[1]
     if o.stopped
         return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
     else
-        action_set = Set(POMDPs.actions(m))
+        action_set = OrderedSet(POMDPs.actions(m))
         n_initial = length(m.initial_data)
         if !isempty(s.rock_obs.ore_quals)
             n_obs = length(s.rock_obs.ore_quals) - n_initial
@@ -284,8 +287,8 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
                     end
                 end
                 push!(reachable_acts, MEAction(type=:stop))
-                reachable_acts = Set(reachable_acts)
-                # reachable_acts = Set([MEAction(coords=coord) for coord in collect(reachable_coords)])
+                reachable_acts = OrderedSet(reachable_acts)
+                # reachable_acts = OrderedSet([MEAction(coords=coord) for coord in collect(reachable_coords)])
                 action_set = intersect(reachable_acts, action_set)
             end
             for i=1:n_obs
@@ -293,7 +296,7 @@ function POMDPs.actions(m::MineralExplorationPOMDP, b::POMCPOW.StateBelief)
                 x = Int64(coord[1])
                 y = Int64(coord[2])
                 keepout = collect(CartesianIndices((x-m.delta:x+m.delta,y-m.delta:y+m.delta)))
-                keepout_acts = Set([MEAction(coords=coord) for coord in keepout])
+                keepout_acts = OrderedSet([MEAction(coords=coord) for coord in keepout])
                 setdiff!(action_set, keepout_acts)
             end
             if n_obs < m.min_bores
@@ -313,7 +316,7 @@ function POMDPs.actions(m::MineralExplorationPOMDP, o::MEObservation)
     if o.stopped
         return MEAction[MEAction(type=:mine), MEAction(type=:abandon)]
     else
-        action_set = Set(POMDPs.actions(m))
+        action_set = OrderedSet(POMDPs.actions(m))
         delete!(action_set, MEAction(type=:mine))
         delete!(action_set, MEAction(type=:abandon))
         return collect(action_set)
