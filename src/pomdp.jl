@@ -138,6 +138,10 @@ function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
 end
 
 function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, b::MEBelief, rng::Random.AbstractRNG)
+    error("POMDPs.gen with a belief passed is has not been implemented (yet) — Robert Moss")
+end
+
+function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Random.AbstractRNG)
     if a ∉ POMDPs.actions(m, s)
         error("Invalid Action $a from state $s")
     end
