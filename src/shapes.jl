@@ -203,7 +203,7 @@ function Base.rand(rng::Random.AbstractRNG, shape::BlobNode; σ=σ_blur(shape.gr
     N = isa(shape.N, Distribution) || isa(shape.N, AbstractArray) ? rand(rng, shape.N) : shape.N
     factor = isa(shape.factor, Distribution) || isa(shape.factor, AbstractArray) ? rand(rng, shape.factor) : shape.factor
     if isnothing(shape.points)
-        pts = polysortbyangle(randompointarray(rng,
+        pts = polysortbyangle(randompointarray(# rng, # TODO: when Luxor.jl PR is merged.
             Luxor.Point(-grid_dims[1]/factor,-grid_dims[2]/factor),
             Luxor.Point(grid_dims[1]/factor, grid_dims[2]/factor),
             N))
