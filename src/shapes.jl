@@ -220,7 +220,7 @@ Base.rand(shape::BlobNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs...
 
 perturb_sample(mainbody::BlobNode, mainbody_params, noise; kwargs...) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise; kwargs...)
 
-function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_params, noise; recompute_points=false)
+function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_params, noise; recompute_points=false, copy_points=false)
     grid_dims = mainbody.grid_dims
     center, N, factor, points, angle, σ = mainbody_params
     noise_scale = grid_dims[1] / 50
@@ -231,11 +231,15 @@ function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_pa
     p_N = clamp(N + rand(rng, 𝒟_noise), 1, Inf)
     p_factor = factor + rand(rng, 𝒟_noise)
     p_angle = angle + deg2rad(rand(rng, 𝒟_noise))
-    if recompute_points
+    if recompute_points || haskey(ENV, "RECOMPUTE_POINTS")
         p_points = nothing
         p_mainbody, p_mainbody_params = rand(rng, BlobNode(grid_dims=grid_dims, center=p_center, N=p_N, factor=p_factor, points=p_points, angle=p_angle); σ=σ)
     else
-        p_points = [Luxor.Point(p.x + rand(rng, 𝒟_noise), p.y + rand(rng, 𝒟_noise)) for p in points]
+        if copy_points
+            p_points = deepcopy(points)
+        else
+            p_points = [Luxor.Point(p.x + rand(rng, 𝒟_noise), p.y + rand(rng, 𝒟_noise)) for p in points]
+        end
         p_shape = BlobNode(grid_dims=grid_dims, center=p_center, N=p_N, factor=p_factor, points=p_points, angle=p_angle)
         p_mainbody = generate_shape_matrix(p_shape; σ=σ)
         p_mainbody_params = [p_center, p_N, p_factor, p_points, p_angle, σ]
