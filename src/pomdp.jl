@@ -125,7 +125,6 @@ function normalize_and_weight(lode_map::AbstractArray, mainbody_weight::Real)
 end
 
 function calc_massive(ore_map::AbstractArray, massive_threshold::Real, dim_scale::Real)
-    @info "calcmassive"
     return dim_scale*sum(ore_map .>= massive_threshold)
 end
 
@@ -177,7 +176,7 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, b::MEBe
         stopped_p = n_bores >= m.max_bores
         decided_p = false
         obs = MEObservation(ore_obs, stopped_p, false)
-        @info "calculating reward"
+        # @info "calculating reward"
         #bp = update(b.up, b, a, obs)
 
         #counts_b = [sum(particle.ore_map .>= m.massive_threshold) for particle in b.particles]
@@ -192,8 +191,7 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, b::MEBe
         #@info divergence
         #@info m.c_exp
         r = -m.drill_cost #+ m.exp_c*divergence
-        @info r
-
+        # @info r
     else
         error("Invalid Action! Action: $(a.type), Stopped: $stopped, Decided: $decided")
     end

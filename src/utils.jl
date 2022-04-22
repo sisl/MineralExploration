@@ -111,10 +111,11 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
     rel_errs = Float64[re]
     vol_stds = Float64[std_vols]
     dists = Float64[]
+    final_belief = nothing
     if verbose
         println("Entering Simulation...")
     end
-    for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_steps=50, rng=m.rng)
+    for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_steps=m.max_bores+2, rng=m.rng)
         discounted_return += POMDPs.discount(m)^(t - 1)*r
         dist = sqrt(sum(([a.coords[1], a.coords[2]] .- 25.0).^2)) #TODO only for single fixed
         last_action = a.type
@@ -161,6 +162,7 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
                 end
             end
         end
+        final_belief = bp
     end
     if verbose
         println("Discounted Return: $discounted_return")
@@ -197,7 +199,7 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
         display(rel_err_fig)
         display(vols_fig)
     end
-    return (discounted_return, dists, abs_errs, rel_errs, vol_stds, n_drills, r_massive, last_action)
+    return (discounted_return, dists, abs_errs, rel_errs, vol_stds, n_drills, r_massive, last_action, final_belief)
 end
 
 function plot_ore_map(ore_map, cmap=:viridis)
