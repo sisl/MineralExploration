@@ -111,7 +111,6 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
     rel_errs = Float64[re]
     vol_stds = Float64[std_vols]
     dists = Float64[]
-    final_belief = nothing
     if verbose
         println("Entering Simulation...")
     end
@@ -162,7 +161,6 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
                 end
             end
         end
-        final_belief = bp
     end
     if verbose
         println("Discounted Return: $discounted_return")
@@ -199,7 +197,7 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
         display(rel_err_fig)
         display(vols_fig)
     end
-    return (discounted_return, dists, abs_errs, rel_errs, vol_stds, n_drills, r_massive, last_action, final_belief)
+    return (discounted_return, dists, abs_errs, rel_errs, vol_stds, n_drills, r_massive, last_action)
 end
 
 function plot_ore_map(ore_map, cmap=:viridis)
