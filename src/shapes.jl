@@ -216,11 +216,19 @@ function Base.rand(rng::Random.AbstractRNG, shape::BlobNode; σ=σ_blur(shape.gr
     return (generate_shape_matrix(shape; σ=σ), params)
 end
 
+function clamp2prior(D::Normal, x, numstd=3)
+    μ = mean(D)
+    span = numstd*std(D)
+    x_min = μ - span
+    x_max = μ + span
+    return clamp(x, x_min, x_max)
+end
+
 Base.rand(shape::BlobNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs...)
 
 perturb_sample(mainbody::BlobNode, mainbody_params, noise; kwargs...) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise; kwargs...)
 
-function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_params, noise; recompute_points=false, copy_points=true)
+function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_params, noise; recompute_points=true, copy_points=false, clamped_to_prior=true)
     grid_dims = mainbody.grid_dims
     center, N, factor, points, angle, σ = mainbody_params
     noise_scale = grid_dims[1] / 50
@@ -230,6 +238,10 @@ function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_pa
     clamp2dims!(p_center, grid_dims)
     p_N = clamp(N + rand(rng, 𝒟_noise), 1, Inf)
     p_factor = factor + rand(rng, 𝒟_noise)
+    if clamped_to_prior
+        p_factor = clamp2prior(mainbody.factor, p_factor)
+        p_N = clamp2prior(mainbody.N, p_N)
+    end
     p_angle = angle + deg2rad(rand(rng, 𝒟_noise))
     if recompute_points || haskey(ENV, "RECOMPUTE_POINTS")
         p_points = nothing
