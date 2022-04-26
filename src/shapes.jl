@@ -220,7 +220,7 @@ Base.rand(shape::BlobNode; kwargs...) = rand(Random.GLOBAL_RNG, shape; kwargs...
 
 perturb_sample(mainbody::BlobNode, mainbody_params, noise; kwargs...) = perturb_sample(Random.GLOBAL_RNG, mainbody, mainbody_params, noise; kwargs...)
 
-function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_params, noise; recompute_points=false, copy_points=false)
+function perturb_sample(rng::Random.AbstractRNG, mainbody::BlobNode, mainbody_params, noise; recompute_points=false, copy_points=true)
     grid_dims = mainbody.grid_dims
     center, N, factor, points, angle, σ = mainbody_params
     noise_scale = grid_dims[1] / 50

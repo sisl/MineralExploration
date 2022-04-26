@@ -120,7 +120,7 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
 end
 
 function update_particles(up::MEBeliefUpdater, particles::Vector{MEState},
-                        geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
+                          geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
     wp = reweight(up, geostats, particles, rock_obs)
     pp = resample(up, particles, wp, geostats, rock_obs, a, o)
     return pp
