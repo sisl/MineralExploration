@@ -81,8 +81,9 @@ function reweight(up::MEBeliefUpdater, geostats::GeoDist, particles::Vector, roc
 end
 
 function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
-                geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
-    sampled_particles = sample(up.rng, particles, StatsBase.Weights(wp), up.n, replace=true)
+                geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation;
+                apply_perturbation=true, n=up.n)
+    sampled_particles = sample(up.rng, particles, StatsBase.Weights(wp), n, replace=true)
     mainbody_params = []
     mainbody_maps = Array{Float64, 3}[]
     particles = MEState[]
@@ -92,13 +93,15 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
         mainbody_param = s.mainbody_params
         mainbody_map = s.mainbody_map
         ore_map = s.ore_map
-        if mainbody_param ∈ mainbody_params
-            mainbody_map, mainbody_param = perturb_sample(up.m.mainbody_gen, mainbody_param, up.noise)
-            max_lode = maximum(mainbody_map)
-            mainbody_map ./= max_lode
-            mainbody_map .*= up.m.mainbody_weight
-            mainbody_map = reshape(mainbody_map, up.m.grid_dim)
-            # clamp!(ore_map, 0.0, 1.0)
+        if apply_perturbation
+            if mainbody_param ∈ mainbody_params
+                mainbody_map, mainbody_param = perturb_sample(up.m.mainbody_gen, mainbody_param, up.noise)
+                max_lode = maximum(mainbody_map)
+                mainbody_map ./= max_lode
+                mainbody_map .*= up.m.mainbody_weight
+                mainbody_map = reshape(mainbody_map, up.m.grid_dim)
+                # clamp!(ore_map, 0.0, 1.0)
+            end
         end
         n_ore_quals = Float64[]
         for (i, ore_qual) in enumerate(ore_quals)
@@ -107,9 +110,10 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
             push!(n_ore_quals, n_ore_qual)
         end
         geostats.data.ore_quals = n_ore_quals
-        # gslib_dist.data.ore_quals = n_ore_quals
-        gp_ore_map = Base.rand(up.rng, geostats)
-        ore_map = gp_ore_map .+ mainbody_map
+        if apply_perturbation
+            gp_ore_map = Base.rand(up.rng, geostats)
+            ore_map = gp_ore_map .+ mainbody_map
+        end
         rock_obs_p = RockObservations(rock_obs.ore_quals, rock_obs.coordinates)
         sp = MEState(ore_map, mainbody_param, mainbody_map, rock_obs_p,
                     o.stopped, o.decided)
@@ -126,8 +130,25 @@ function update_particles(up::MEBeliefUpdater, particles::Vector{MEState},
     return pp
 end
 
+
+function update_particles_perturbed_inject(up::MEBeliefUpdater, particles::Vector{MEState},
+                                           geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
+    m = 50 # TODO: parameterize `m`
+    wp = reweight(up, geostats, particles, rock_obs)
+    injected_particles = resample(up, particles, wp, geostats, rock_obs, a, o; apply_perturbation=true, n=m)
+    particles = vcat(particles, injected_particles)
+    wp2 = reweight(up, geostats, particles, rock_obs)
+    pp = resample(up, particles, wp2, geostats, rock_obs, a, o; apply_perturbation=false)
+    return pp
+end
+
+function inject_particles(up::MEBeliefUpdater, n::Int64)
+    d = POMDPs.initialstate_distribution(up.m) # TODO. Keep as part of `MEBeliefUpdater`
+    return rand(up.rng, d, n)
+end
+
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
-                            a::MEAction, o::MEObservation)
+                       a::MEAction, o::MEObservation; inject=true)
     if a.type != :drill
         bp_particles = MEState[] # MEState[p for p in b.particles]
         for p in b.particles
@@ -168,7 +189,8 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                                             b.geostats.transform_data, b.geostats.mn,
                                             b.geostats.sz)
         end
-        bp_particles = update_particles(up, b.particles, bp_geostats, bp_rock, a, o)
+        f_update_particles = inject ? update_particles_perturbed_inject : update_particles
+        bp_particles = f_update_particles(up, b.particles, bp_geostats, bp_rock, a, o)
     end
 
     bp_acts = MEAction[]
