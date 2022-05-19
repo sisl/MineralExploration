@@ -95,7 +95,10 @@ include("standardization.jl")
 export
         plot_history,
         run_trial,
-        gen_cases
+        gen_cases,
+        plot_ore_map,
+        plot_mass_map,
+        plot_volume
 include("utils.jl")
 
 end
