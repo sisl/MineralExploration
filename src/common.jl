@@ -28,13 +28,3 @@ end
 end
 
 abstract type GeoDist end
-
-# struct MEBelief{G}
-#     particles::Vector{MEState} # Vector of vars & lode maps
-#     rock_obs::RockObservations
-#     acts::Vector{MEAction}
-#     obs::Vector{MEObservation}
-#     stopped::Bool
-#     decided::Bool
-#     geostats::G #GSLIB or GeoStats
-# end
