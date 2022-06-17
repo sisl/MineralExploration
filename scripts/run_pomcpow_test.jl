@@ -9,7 +9,7 @@ using StatsBase
 
 using MineralExploration
 
-N = 100
+N = 1000
 N_INITIAL = 0
 MAX_BORES = 20
 GRID_SPACING = 1
@@ -18,6 +18,7 @@ CASE_DIR = "./data/two_test_cases.jld"
 SAVE_DIR = "./data/tests/two_constrained_test/"
 
 println(typeof(test_schedule))
+# UNCOMMENT DESIRED TEST CONFIGURATION, COMMENT OUT REMAINING
 # mainbody = SingleFixedNode()
 # mainbody = SingleVarNode()
 mainbody = MultiVarNode()
