@@ -181,19 +181,3 @@ function Base.rand(rng::AbstractRNG, d::GeoStatsDistribution, n::Int64=1)
 end
 
 Base.rand(d::GeoStatsDistribution, n::Int64=1) = Base.rand(Random.GLOBAL_RNG, d, n)
-
-# function solve_gp(d::GeoStatsDistribution)
-#     table = DataFrame(porosity=d.data.ore_quals)
-#     domain = PointSet(d.data.coordinates)
-#     geodata = georef(table, domain)
-#     problem = EstimationProblem(geodata, d.domain, :ore)
-#     solver = Kriging(
-#                         :ore => ( mean=d.mean,
-#                                     variogram=d.variogram
-#                                        )
-#                          )
-#     solution = GeoStats.solve(problem, solver)
-#     ore_mean = reshape(solution[:ore], d.grid_dims)
-#     ore_var = reshape(solution[:ore_variance], d.grid_dims)
-#     return (ore_mean, ore_var)
-# end
