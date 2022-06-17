@@ -19,8 +19,6 @@ function belief_scores(m, v)
     norm_std = s./(maximum(s) - minimum(s)) # actualy using variance
     norm_std .-= minimum(norm_std)
     scores = (norm_mean .* norm_std).^2
-    # scores = norm_mean .+ norm_std
-    # scores .+= 1.0/length(scores)
     scores ./= sum(scores)
     return scores
 end
@@ -181,12 +179,7 @@ function leaf_estimation(pomdp::MineralExplorationPOMDP, s::MEState, h::POMCPOW.
         return 0.0
     else
         r_extract = extraction_reward(pomdp, s)
-        if r_extract >= 0.0
-            return γ*r_extract*0.9
-        else
-            return γ*r_extract*0.1
-        end
-        # return γ*r_extract
+        return γ*r_extract
     end
 end
 
