@@ -5,10 +5,6 @@ struct GPNextAction{I}
     init_a::I
 end
 
-# function GPNextAction(l::Float64, sf::Float64, sn::Float64, init_a::I=nothing) where I
-#     return GPNextAction{I}(l, sf, sn, init_a)
-# end
-
 function kernel(x::MEAction, y::MEAction, l::Float64, sf::Float64)
     if x.type == y.type
         d = (x.coords[1] - y.coords[1])^2 + (x.coords[2] - y.coords[2])^2
@@ -81,7 +77,6 @@ function POMCPOW.next_action(o::GPNextAction, pomdp::MineralExplorationPOMDP,
     actions = POMDPs.actions(pomdp, b)::Vector{MEAction}
 
     if length(tried_actions) > 0
-        # μ, σ² = gp_posterior(actions, tried_actions, action_values, action_ns, o.l, o.sf, o.sn)
         μ, σ² = approx_posterior(actions, tried_actions, action_values, action_ns, o.l, o.sf, o.sn)
         f = maximum(action_values)
         ei = expected_improvement(μ, σ², f)
@@ -104,7 +99,6 @@ function POMCPOW.next_action(o::GPNextAction, pomdp::MineralExplorationPOMDP,
     actions = POMDPs.actions(pomdp, b)::Vector{MEAction}
 
     if length(tried_actions) > 0
-        # μ, σ² = gp_posterior(actions, tried_actions, action_values, action_ns, o.l, o.sf, o.sn)
         μ, σ² = approx_posterior(actions, tried_actions, action_values, action_ns, o.l, o.sf, o.sn)
         f = maximum(action_values)
         ei = expected_improvement(μ, σ², f)
