@@ -22,9 +22,6 @@ function sample_ucb_drill(mean, var)
 end
 
 function belief_scores(m, v)
-    # scores = exp.((mean[:,:,1] + ucb.*sqrt.(var[:,:,1]))*t)
-    # scores = m[:,:,1] + 5.0.*sqrt.(v[:,:,1])
-    # scores = 3.0.*sqrt.(v[:,:,1])
 
     norm_mean = m[:,:,1]./(maximum(m[:,:,1]) - minimum(m[:,:,1]))
     norm_mean .-= minimum(norm_mean)
@@ -39,25 +36,6 @@ function belief_scores(m, v)
     scores ./= sum(scores)
     return scores
 end
-
-# function belief_scores(m, v)
-#     m_pad = zeros(Float64, size(m)[1] + 2, size(m)[2] + 2)
-#     m_pad[2:size(m)[1]+1, 2:size(m)[2]+1] = m[:,:,1]
-#     # m[:, :, 1]
-#     grads = zeros(Float64, size(m)[1], size(m)[2])
-#     for i = 2:size(m)[1] - 1
-#         for j = 2:size(m)[2] - 1
-#             grads[i, j] = m[i, j, 1]
-#             grads[i, j] -= 0.25*m_pad[i, j]
-#             grads[i, j] -= 0.25*m_pad[i+2, j]
-#             grads[i, j] -= 0.25*m_pad[i, j+2]
-#             grads[i, j] -= 0.25*m_pad[i+2, j+2]
-#         end
-#     end
-#     # scores = grads./sum(grads)
-#     scores = abs.(grads)
-#     return scores
-# end
 
 N_INITIAL = 0
 MAX_BORES = 10
@@ -78,10 +56,6 @@ b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 b = b0
-# b = POMDPs.update(up, b0, MEAction(coords=CartesianIndex(20, 30)),
-#                 MEObservation(s0.ore_map[20, 30, 1], false, false))
-# b = POMDPs.update(up, b, MEAction(coords=CartesianIndex(30, 30)),
-#                 MEObservation(s0.ore_map[30, 30, 1], false, false))
 
 mean_ore, var_ore = MineralExploration.summarize(b)
 p_sample = belief_scores(mean_ore, var_ore)
@@ -89,7 +63,6 @@ println("Plotting...")
 fig = plot(b)
 display(fig)
 fig = heatmap(p_sample, title="Sampling Probability, UCB=$UCB", fill=true) #, clims=(0.0, 1.0))
-# savefig(fig, "./data/next_action.png")
 display(fig)
 
 x = []
@@ -102,4 +75,4 @@ end
 
 scatter!(fig, x, y, legend=:none)
 display(fig)
-# savefig(fig, "./data/next_action_sampled.png")
+
