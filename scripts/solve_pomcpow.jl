@@ -8,7 +8,6 @@ using Plots
 using ParticleFilters
 using Statistics
 
-using ProfileView
 using D3Trees
 
 using MineralExploration
@@ -56,12 +55,6 @@ solver = POMCPOWSolver(tree_queries=10000,
                        )
 planner = POMDPs.solve(solver, m)
 
-# @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
-# @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
-# volumes = [sum(b.ore_map[:,:,1] .>= m.massive_threshold) for b in b0.particles]
-# mean(volumes)
-# MineralExploration.std(volumes)
-
 # println("Building test tree...")
 # a, info = POMCPOW.action_info(planner, B[2], tree_in_info=true)
 # tree = info[:tree]
@@ -83,12 +76,7 @@ display(fig)
 
 fig = plot(b0)
 display(fig)
-#
-# vars = [p.mainbody_params for p in b0.particles]
-# mean_vars = mean(vars)
-# std_vars = std(vars)
-# println("Vars: $mean_vars ± $std_vars")
-#
+
 vols = [sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
 mean_vols = mean(vols)
 std_vols = std(vols)
@@ -177,8 +165,3 @@ println("Decision: $(a_new.type)")
 println("Massive Ore: $r_massive")
 println("Mining Profit: $(r_massive - m.extraction_cost)")
 println("Episode Return: $discounted_return")
-
-# m, v = MineralExploration.summarize(b_new)
-# scores = MineralExploration.belief_scores(m, v)
-# display(heatmap(scores))
-# plot(b_new)
