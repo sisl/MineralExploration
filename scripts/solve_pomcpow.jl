@@ -56,20 +56,9 @@ solver = POMCPOWSolver(tree_queries=10000,
                        )
 planner = POMDPs.solve(solver, m)
 
-# @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
-# @profview POMCPOW.action_info(planner, b0, tree_in_info=true)
-# volumes = [sum(b.ore_map[:,:,1] .>= m.massive_threshold) for b in b0.particles]
-# mean(volumes)
-# MineralExploration.std(volumes)
-
-# println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, B[2], tree_in_info=true)
-# tree = info[:tree]
-# inbrowser(D3Tree(tree, init_expand=1), "firefox")
 
 println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
-# savefig(fig, "./data/example/ore_vals.png")
 display(fig)
 
 s_massive = s0.ore_map .>= m.massive_threshold
@@ -78,28 +67,17 @@ println("Massive ore: $r_massive")
 println("MB Variance: $(s0.mainbody_params)")
 
 fig = heatmap(s_massive[:,:,1], title="Massive Ore Deposits: $r_massive", fill=true, clims=(0.0, 1.0))
-# savefig(fig, "./data/example/massive.png")
 display(fig)
 
 fig = plot(b0)
 display(fig)
-#
-# vars = [p.mainbody_params for p in b0.particles]
-# mean_vars = mean(vars)
-# std_vars = std(vars)
-# println("Vars: $mean_vars ± $std_vars")
-#
+
 vols = [sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
 mean_vols = mean(vols)
 std_vols = std(vols)
 println("Vols: $mean_vols ± $std_vols")
 profitable = mean(vols .>= m.extraction_cost)
 println("Profitable: $profitable")
-
-# fig = histogram(vars, bins=10 )
-# display(fig)
-# fig = histogram(vols, bins=10 )
-# display(fig)
 
 b_mean, b_std = MineralExploration.summarize(b0)
 open("./data/belief_mean.txt", "a") do io
@@ -153,15 +131,8 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     push!(ME, mean_error)
     fig = plot(bp, t)
     str = "./data/example/belief_$t.png"
-    # savefig(fig, str)
     display(fig)
 
-    # vars = [p.mainbody_params for p in bp.particles]
-    # mean_vars = mean(vars)
-    # std_vars = std(vars)
-    # println("Vars: $mean_vars ± $std_vars")
-    # fig = histogram(vars, bins=10)
-    # display(fig)
     b_mean, b_std = MineralExploration.summarize(bp)
     open("./data/belief_mean.txt", "a") do io
         writedlm(io, reshape(b_mean, :, 1))
@@ -178,7 +149,3 @@ println("Massive Ore: $r_massive")
 println("Mining Profit: $(r_massive - m.extraction_cost)")
 println("Episode Return: $discounted_return")
 
-# m, v = MineralExploration.summarize(b_new)
-# scores = MineralExploration.belief_scores(m, v)
-# display(heatmap(scores))
-# plot(b_new)
