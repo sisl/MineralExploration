@@ -34,11 +34,7 @@ b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
 
-ore_maps = [p.ore_map for p in b0.particles];
-mean_ore_map = mean(ore_maps)
-var_ore_map = var(ore_maps)
-next_action = NextActionSampler() #b0, up)
-# next_action = GPNextAction(30.0, 25.0, 25.0, NextActionSampler())
+next_action = NextActionSampler() 
 solver = POMCPOWSolver(tree_queries=10000,
                        check_repeat_obs=true,
                        check_repeat_act=true,
@@ -51,18 +47,11 @@ solver = POMCPOWSolver(tree_queries=10000,
                        final_criterion=POMCPOW.MaxQ(),
                        # final_criterion=POMCPOW.MaxTries(),
                        estimate_value=0.0
-                       # estimate_value=leaf_estimation
                        )
 planner = POMDPs.solve(solver, m)
 
-# println("Building test tree...")
-# a, info = POMCPOW.action_info(planner, B[2], tree_in_info=true)
-# tree = info[:tree]
-# inbrowser(D3Tree(tree, init_expand=1), "firefox")
-
 println("Plotting...")
 fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 1.0))
-# savefig(fig, "./data/example/ore_vals.png")
 display(fig)
 
 s_massive = s0.ore_map .>= m.massive_threshold
@@ -71,7 +60,6 @@ println("Massive ore: $r_massive")
 println("MB Variance: $(s0.mainbody_params)")
 
 fig = heatmap(s_massive[:,:,1], title="Massive Ore Deposits: $r_massive", fill=true, clims=(0.0, 1.0))
-# savefig(fig, "./data/example/massive.png")
 display(fig)
 
 fig = plot(b0)
@@ -83,11 +71,6 @@ std_vols = std(vols)
 println("Vols: $mean_vols ± $std_vols")
 profitable = mean(vols .>= m.extraction_cost)
 println("Profitable: $profitable")
-
-# fig = histogram(vars, bins=10 )
-# display(fig)
-# fig = histogram(vols, bins=10 )
-# display(fig)
 
 b_mean, b_std = MineralExploration.summarize(b0)
 open("./data/belief_mean.txt", "a") do io
@@ -141,15 +124,8 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     push!(ME, mean_error)
     fig = plot(bp, t)
     str = "./data/example/belief_$t.png"
-    # savefig(fig, str)
     display(fig)
 
-    # vars = [p.mainbody_params for p in bp.particles]
-    # mean_vars = mean(vars)
-    # std_vars = std(vars)
-    # println("Vars: $mean_vars ± $std_vars")
-    # fig = histogram(vars, bins=10)
-    # display(fig)
     b_mean, b_std = MineralExploration.summarize(bp)
     open("./data/belief_mean.txt", "a") do io
         writedlm(io, reshape(b_mean, :, 1))
