@@ -27,7 +27,11 @@ end
 
 function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMDP,
                             b::MEBelief, h)
-    tried_idxs = h.tree.tried[h.node]
+    if h.tree isa POMCPOWTree
+        tried_idxs = h.tree.tried[h.node]
+    elseif h.tree isa MCTS.DPWTree
+        tried_idxs = h.tree.children[h.index]
+    end
     action_set = POMDPs.actions(pomdp, b)
     if b.stopped
         if length(tried_idxs) == 0

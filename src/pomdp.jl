@@ -149,30 +149,25 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
     decided = s.decided
     a_type = a.type
 
-    #drill then stop then mine or abandon
+    # drill then stop then mine or abandon
     if a_type == :stop && !stopped && !decided
         obs = MEObservation(nothing, true, false)
-        r = 0.0
         rock_obs_p = s.rock_obs
         stopped_p = true
         decided_p = false
     elseif a_type == :abandon && stopped && !decided
         obs = MEObservation(nothing, true, true)
-        r = 0.0
         rock_obs_p = s.rock_obs
         stopped_p = true
         decided_p = true
     elseif a_type == :mine && stopped && !decided
         obs = MEObservation(nothing, true, true)
-        r = extraction_reward(m, s)
         rock_obs_p = s.rock_obs
         stopped_p = true
         decided_p = true
     elseif a_type ==:drill && !stopped && !decided
         ore_obs = high_fidelity_obs(m, s.ore_map, a)
         a_coords = reshape(Int64[a.coords[1] a.coords[2]], 2, 1)
-
-
         rock_obs_p = deepcopy(s.rock_obs)
         rock_obs_p.coordinates = hcat(rock_obs_p.coordinates, a_coords)
         push!(rock_obs_p.ore_quals, ore_obs)
@@ -180,27 +175,30 @@ function POMDPs.gen(m::MineralExplorationPOMDP, s::MEState, a::MEAction, rng::Ra
         stopped_p = n_bores >= m.max_bores
         decided_p = false
         obs = MEObservation(ore_obs, stopped_p, false)
-        # @info "calculating reward"
-        #bp = update(b.up, b, a, obs)
-
-        #counts_b = [sum(particle.ore_map .>= m.massive_threshold) for particle in b.particles]
-        #counts_bp = [sum(particle.ore_map .>= m.massive_threshold) for particle in bp.particles]
-        #U_b = kde(counts_b)
-        #pdf_b = pdf(U_b, 0:25:400)
-        #U_bp = kde(counts_bp)
-        #pdf_bp = pdf(U_bp, 0:25:400)
-
-        #divergence = kldivergence(pdf_b, pdf_bp)
-        #divergence = js_divergence(pdf_b, pdf_bp)
-        #@info divergence
-        #@info m.c_exp
-        r = -m.drill_cost #+ m.exp_c*divergence
-        # @info r
     else
         error("Invalid Action! Action: $(a.type), Stopped: $stopped, Decided: $decided")
     end
+    r = reward(m, s, a)
     sp = MEState(s.ore_map, s.mainbody_params, s.mainbody_map, rock_obs_p, stopped_p, decided_p)
     return (sp=sp, o=obs, r=r)
+end
+
+
+function POMDPs.reward(m::MineralExplorationPOMDP, s::MEState, a::MEAction)
+    stopped = s.stopped
+    decided = s.decided
+    a_type = a.type
+
+    if a_type in [:stop, :abandon]
+        r = 0.0
+    elseif a_type == :mine
+        r = extraction_reward(m, s)
+    elseif a_type ==:drill
+        r = -m.drill_cost
+    else
+        error("Invalid Action! Action: $(a.type), Stopped: $stopped, Decided: $decided")
+    end
+    return r
 end
 
 

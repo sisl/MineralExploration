@@ -1,5 +1,3 @@
-
-
 struct MEBeliefUpdater{G} <: POMDPs.Updater
     m::MineralExplorationPOMDP
     geostats::G
@@ -25,6 +23,20 @@ struct MEBelief{G}
     up::MEBeliefUpdater ## include the belief updater
 end
 
+# Ensure MEBeliefs can be compared when adding them to dictionaries (using `hash`, `isequal` and `==`)
+Base.hash(r::RockObservations, h::UInt) = hash(Tuple(getproperty(r, p) for p in propertynames(r)), h)
+Base.isequal(r1::RockObservations, r2::RockObservations) = all(isequal(getproperty(r1, p), getproperty(r2, p)) for p in propertynames(r1))
+Base.:(==)(r1::RockObservations, r2::RockObservations) = isequal(r1, r2)
+
+Base.hash(g::GeoStatsDistribution, h::UInt) = hash(Tuple(getproperty(g, p) for p in propertynames(g)), h)
+Base.isequal(g1::GeoStatsDistribution, g2::GeoStatsDistribution) = all(isequal(getproperty(g1, p), getproperty(g2, p)) for p in propertynames(g1))
+Base.:(==)(g1::GeoStatsDistribution, g2::GeoStatsDistribution) = isequal(g1, g2)
+
+Base.hash(b::MEBelief, h::UInt) = hash(Tuple(getproperty(b, p) for p in propertynames(b)), h)
+Base.isequal(b1::MEBelief, b2::MEBelief) = all(isequal(getproperty(b1, p), getproperty(b2, p)) for p in propertynames(b1))
+Base.:(==)(b1::MEBelief, b2::MEBelief) = isequal(b1, b2)
+
+
 function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     particles = rand(up.rng, d, up.n)
     init_rocks = up.m.initial_data
@@ -33,6 +45,11 @@ function POMDPs.initialize_belief(up::MEBeliefUpdater, d::MEInitStateDist)
     obs = MEObservation[]
     return MEBelief(particles, rock_obs, acts, obs, false, false, up.geostats, up)
 end
+
+# TODO: ParticleFilters.particles
+particles(b::MEBelief) = b.particles
+# TODO: ParticleFilters.support
+support(b::MEBelief) = POMDPs.support(particles(b))
 
 function calc_K(geostats::GeoDist, rock_obs::RockObservations)
     if isa(geostats, GeoStatsDistribution)
@@ -148,7 +165,7 @@ function inject_particles(up::MEBeliefUpdater, n::Int64)
 end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
-                       a::MEAction, o::MEObservation; inject=true)
+                       a::MEAction, o::MEObservation; inject=false)
     if a.type != :drill
         bp_particles = MEState[] # MEState[p for p in b.particles]
         for p in b.particles
@@ -385,4 +402,51 @@ function Plots.plot(b::MEBelief, t=nothing; cmap=:viridis)
     end
     fig = plot(fig1, fig2, layout=(1,2), size=(600,250))
     return fig
+end
+
+
+data_skewness(D) = [skewness(D[x,y,1:end-1]) for x in 1:size(D,1), y in 1:size(D,2)]
+data_kurtosis(D) = [kurtosis(D[x,y,1:end-1]) for x in 1:size(D,1), y in 1:size(D,2)]
+
+
+function convert2data(b::MEBelief)
+    states = cat([p.ore_map[:,:,1] for p in particles(b)]..., dims=3)
+    observations = zeros(size(states)[1:2])
+    for (i,a) in enumerate(b.acts)
+        if a.type == :drill
+            y, x = a.coords.I
+            observations[x,y] = b.obs[i].ore_quality
+        end
+    end
+    return cat(states, observations; dims=3)
+end
+
+
+function get_input_representation(b::MEBelief)
+    D = convert2data(b)
+    μ = mean(D[:,:,1:end-1], dims=3)[:,:,1]
+    σ² = std(D[:,:,1:end-1], dims=3)[:,:,1]
+    sk = data_skewness(D)
+    kurt = data_kurtosis(D)
+    obs = D[:,:,end]
+    return cat(μ, σ², sk, kurt, obs; dims=3)
+end
+
+
+plot_input_representation(b::MEBelief) = plot_input_representation(get_input_representation(b))
+function plot_input_representation(B::Array{<:Real, 3})
+    μ = B[:,:,1]
+    σ² = B[:,:,2]
+    sk = B[:,:,3]
+    kurt = B[:,:,4]
+    obs = B[:,:,5]
+    xl = (1,size(μ,1))
+    yl = (1,size(μ,2))
+    cmap = :viridis
+    fig1 = heatmap(μ, title="mean", fill=true, clims=(0, 1), legend=false, ratio=1, c=cmap, xlims=xl, ylims=yl)
+    fig2 = heatmap(σ², title="stdev", fill=true, clims=(0.0, 0.2), legend=false, ratio=1, c=cmap, xlims=xl, ylims=yl)
+    fig3 = heatmap(sk, title="skewness", fill=true, clims=(-1, 1), legend=false, ratio=1, c=cmap, xlims=xl, ylims=yl)
+    fig4 = heatmap(kurt, title="kurtosis", fill=true, clims=(-3, 3), legend=false, ratio=1, c=cmap, xlims=xl, ylims=yl)
+    fig5 = heatmap(obs, title="obs", fill=true, clims=(0, 1), legend=false, ratio=1, c=cmap, xlims=xl, ylims=yl)
+    return plot(fig1, fig2, fig3, fig4, fig5, layout=(1,5), size=(300*5,250), margin=3Plots.mm)
 end

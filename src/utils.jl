@@ -1,3 +1,9 @@
+mutable struct BetaZeroTrainingData
+    b # current belief
+    π # current policy estimate (using N(s,a))
+    z # final outcome (discounted return of the episode)
+end
+
 function plot_history(hs::Vector, n_max::Int64=10,
                         title::Union{Nothing, String}=nothing,
                         y_label::Union{Nothing, String}=nothing,
@@ -53,8 +59,8 @@ end
 function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
                 policy::POMDPs.Policy, s0::MEState, b0::MEBelief;
                 display_figs::Bool=true, save_dir::Union{Nothing, String}=nothing,
-                cmap=:viridis,
-                verbose::Bool=true)
+                return_final_belief=false, return_all_trees=false, collect_training_data=false,
+                cmap=:viridis, verbose::Bool=true)
     if verbose
         println("Initializing belief...")
     end
@@ -111,8 +117,13 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
     rel_errs = Float64[re]
     vol_stds = Float64[std_vols]
     dists = Float64[]
+    final_belief = nothing
+    trees = []
     if verbose
         println("Entering Simulation...")
+    end
+    if collect_training_data
+        training_data = [BetaZeroTrainingData(get_input_representation(b0), nothing, nothing)]
     end
     for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_steps=m.max_bores+2, rng=m.rng)
         discounted_return += POMDPs.discount(m)^(t - 1)*r
@@ -161,9 +172,22 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
                 end
             end
         end
+        final_belief = bp
+        if return_all_trees
+            push!(trees, deepcopy(policy.tree))
+        end
+        if collect_training_data && a.type == :drill # NOTE that :stop and beyond have the same belief representation and obs.
+            data = BetaZeroTrainingData(get_input_representation(bp), nothing, nothing)
+            push!(training_data, data)
+        end
     end
     if verbose
         println("Discounted Return: $discounted_return")
+    end
+    if collect_training_data
+        for d in training_data
+            d.z = discounted_return
+        end
     end
     ts = [1:length(abs_errs);] .- 1
     dist_fig = plot(ts[2:end], dists, title="bore distance to center",
@@ -197,7 +221,17 @@ function run_trial(m::MineralExplorationPOMDP, up::POMDPs.Updater,
         display(rel_err_fig)
         display(vols_fig)
     end
-    return (discounted_return, dists, abs_errs, rel_errs, vol_stds, n_drills, r_massive, last_action)
+    return_values = (discounted_return, dists, abs_errs, rel_errs, vol_stds, n_drills, r_massive, last_action)
+    if return_final_belief
+        return_values = (return_values..., final_belief)
+    end
+    if return_all_trees
+        return_values = (return_values..., trees)
+    end
+    if collect_training_data
+        return_values = (return_values..., training_data)
+    end
+    return return_values
 end
 
 function plot_ore_map(ore_map, cmap=:viridis)
@@ -223,12 +257,14 @@ function plot_volume(m::MineralExplorationPOMDP, b0::MEBelief, r_massive::Real; 
     if verbose
         println("Vols: $mean_vols ± $std_vols")
     end
-    h = fit(Histogram, vols, [0:10:300;])
+    h = fit(Histogram, vols, [0:10:400;])
     h = normalize(h, mode=:probability)
 
     b0_hist = plot(h, title="belief volumes t=$t, μ=$mean_vols, σ=$std_vols", legend=:none, c=:cadetblue)
     h_height = maximum(h.weights)
     plot!(b0_hist, [r_massive, r_massive], [0.0, h_height], linecolor=:crimson, linewidth=3)
+    plot!([mean_vols, mean_vols], [0.0, h_height], linecolor=:crimson, linestyle=:dash, linewidth=2, label=false)
+    plot!([m.extraction_cost, m.extraction_cost], [0.0, h_height/3], linecolor=:gold, linewidth=4, label=false)
     ylims!(0, h_height*1.05)
 
     return (b0_hist, vols, mean_vols, std_vols)

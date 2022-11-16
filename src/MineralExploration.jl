@@ -15,6 +15,7 @@ using JSON
 using KernelDensity
 using Luxor
 using LinearAlgebra
+using MCTS
 using Parameters
 using Plots; default(fontfamily="Computer Modern", framestyle=:box) # LaTex-style
 using POMCPOW
@@ -57,11 +58,16 @@ export
 include("mainbody.jl")
 
 export
-        MEBeliefUpdater
+        MEBeliefUpdater,
+        particles,
+        support,
+        get_input_representation,
+        plot_input_representation
 include("beliefs.jl")
 
 export
-        initialize_data!
+        initialize_data!,
+        high_fidelity_obs
 include("pomdp.jl")
 
 export
@@ -100,5 +106,9 @@ export
         plot_mass_map,
         plot_volume
 include("utils.jl")
+
+export
+        BeliefMDP
+include("belief_mdp.jl")
 
 end

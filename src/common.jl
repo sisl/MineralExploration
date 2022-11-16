@@ -74,4 +74,3 @@ struct MEInitStateDist
     target_σ::Float64
     rng::AbstractRNG
 end
-
