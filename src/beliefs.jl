@@ -414,7 +414,7 @@ function convert2data(b::MEBelief)
     observations = zeros(size(states)[1:2])
     for (i,a) in enumerate(b.acts)
         if a.type == :drill
-            y, x = a.coords.I
+            x, y = a.coords.I
             observations[x,y] = b.obs[i].ore_quality
         end
     end
