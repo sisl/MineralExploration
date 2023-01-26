@@ -49,7 +49,7 @@ end
 # TODO: ParticleFilters.particles
 particles(b::MEBelief) = b.particles
 # TODO: ParticleFilters.support
-support(b::MEBelief) = POMDPs.support(particles(b))
+POMDPs.support(b::MEBelief) = POMDPs.support(particles(b))
 
 function calc_K(geostats::GeoDist, rock_obs::RockObservations)
     if isa(geostats, GeoStatsDistribution)
