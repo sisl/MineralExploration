@@ -244,7 +244,6 @@ function plot_mass_map(ore_map, massive_threshold, cmap=:viridis; dim_scale=1, t
     xl = (0.5, size(ore_map,1)+0.5)
     yl = (0.5, size(ore_map,2)+0.5)
     s_massive = ore_map .>= massive_threshold
-    dim_scale = truth ? 1 : dim_scale
     r_massive = dim_scale*sum(s_massive)
     mass_fig = heatmap(s_massive[:,:,1], title="massive ore deposits: $(round(r_massive, digits=2))", fill=true, clims=(0.0, 1.0), aspect_ratio=1, xlims=xl, ylims=yl, c=cmap)
     return (mass_fig, r_massive)

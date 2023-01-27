@@ -79,7 +79,7 @@ function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP)
     gp_dist = m.geodist_type(m)
     MEInitStateDist(true_gp_dist, gp_dist, m.mainbody_weight,
                     m.true_mainbody_gen, m.mainbody_gen,
-                    m.massive_threshold, m.dim_scale,
+                    m.massive_threshold, m.dim_scale, m.target_dim_scale,
                     m.target_mass_params[1], m.target_mass_params[2], m.rng) #m.rng passes global
 end
 
@@ -130,7 +130,7 @@ end
 
 function extraction_reward(m::MineralExplorationPOMDP, s::MEState)
     truth = size(s.mainbody_map) == m.high_fidelity_dim
-    dim_scale = truth ? 1 : m.dim_scale
+    dim_scale = truth ? m.target_dim_scale : m.dim_scale
     r_massive = calc_massive(s.ore_map, m.massive_threshold, dim_scale)
     r = m.strike_reward*r_massive
     r -= m.extraction_cost

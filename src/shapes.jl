@@ -38,7 +38,7 @@ function scale_sample(d::MEInitStateDist, mainbody::ShapeNode, lode_map, gp_ore_
 
     ore_map = lode_map + gp_ore_map
     truth = size(ore_map) == d.true_gp_distribution.grid_dims
-    dim_scale = truth ? 1 : d.dim_scale
+    dim_scale = truth ? d.target_dim_scale : d.dim_scale
     r_massive_prescale = calc_massive(ore_map, d.massive_thresh, dim_scale)
     scale = standardize_scale(r_massive_prescale, μ, σ; target_μ=target_μ, target_σ=target_σ)
     lode_map, lode_params = scale_sample(mainbody, lode_params, scale)
