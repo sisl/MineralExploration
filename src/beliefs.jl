@@ -3,12 +3,14 @@ struct MEBeliefUpdater{G} <: POMDPs.Updater
     geostats::G
     n::Int64
     noise::Float64
+    abc::Bool
+    abc_ϵ::Float64
     rng::AbstractRNG
 end
 
-function MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0)
+function MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0; abc::Bool=false, abc_ϵ::Float64=1e-4)
     geostats = m.geodist_type(m)
-    return MEBeliefUpdater(m, geostats, n, noise, m.rng)
+    return MEBeliefUpdater(m, geostats, n, noise, abc, abc_ϵ, m.rng)
 end
 
 
@@ -159,13 +161,45 @@ function update_particles_perturbed_inject(up::MEBeliefUpdater, particles::Vecto
     return pp
 end
 
+
+function reweight_abc(up::MEBeliefUpdater, particles::Vector, rock_obs::RockObservations)
+    ws = Float64[]
+    ϵ = up.abc_ϵ
+    dist_mse(x, y) = (x - y)^2
+    dist_abs(x, y) = abs(x - y)
+    rho = dist_mse
+    ore_quals = deepcopy(rock_obs.ore_quals)
+    actions = deepcopy(rock_obs.coordinates)
+    for particle in particles
+        w = 1
+        for a in eachcol(actions)
+            for o in ore_quals
+                b_o = particle.ore_map[a[1], a[2]]
+                w = rho(b_o, o)
+                w *= w ≤ ϵ ? w : 0 # 1e-8 # acceptance tolerance
+            end
+        end
+        push!(ws, w)
+    end
+    ws .+= 1e-6
+    normalize!(ws, 1)
+    return ws
+end
+
+function update_particles_abc(up::MEBeliefUpdater, particles::Vector{MEState},
+                              geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
+    wp = reweight_abc(up, particles, rock_obs)
+    pp = resample(up, particles, wp, geostats, rock_obs, a, o; apply_perturbation=false)
+    return pp
+end
+
 function inject_particles(up::MEBeliefUpdater, n::Int64)
     d = POMDPs.initialstate_distribution(up.m) # TODO. Keep as part of `MEBeliefUpdater`
     return rand(up.rng, d, n)
 end
 
 function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
-                       a::MEAction, o::MEObservation; inject=false)
+                       a::MEAction, o::MEObservation)
     if a.type != :drill
         bp_particles = MEState[] # MEState[p for p in b.particles]
         for p in b.particles
@@ -206,7 +240,7 @@ function POMDPs.update(up::MEBeliefUpdater, b::MEBelief,
                                             b.geostats.transform_data, b.geostats.mn,
                                             b.geostats.sz)
         end
-        f_update_particles = inject ? update_particles_perturbed_inject : update_particles
+        f_update_particles = up.abc ? update_particles_abc : update_particles
         bp_particles = f_update_particles(up, b.particles, bp_geostats, bp_rock, a, o)
     end
 
