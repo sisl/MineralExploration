@@ -5,12 +5,13 @@ struct MEBeliefUpdater{G} <: POMDPs.Updater
     noise::Float64
     abc::Bool
     abc_ϵ::Float64
+    abc_dist::Function
     rng::AbstractRNG
 end
 
-function MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0; abc::Bool=false, abc_ϵ::Float64=1e-4)
+function MEBeliefUpdater(m::MineralExplorationPOMDP, n::Int64, noise::Float64=1.0; abc::Bool=false, abc_ϵ::Float64=1e-1, abc_dist::Function=(x,x′)->abs(x-x′))
     geostats = m.geodist_type(m)
-    return MEBeliefUpdater(m, geostats, n, noise, abc, abc_ϵ, m.rng)
+    return MEBeliefUpdater(m, geostats, n, noise, abc, abc_ϵ, abc_dist, m.rng)
 end
 
 
@@ -101,17 +102,16 @@ end
 
 function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
                 geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation;
-                apply_perturbation=true, n=up.n)
+                apply_perturbation=true, resample_background_noise::Bool=true, n=up.n)
     sampled_particles = sample(up.rng, particles, StatsBase.Weights(wp), n, replace=true)
     mainbody_params = []
-    mainbody_maps = Array{Float64, 3}[]
     particles = MEState[]
-    x = nothing
     ore_quals = deepcopy(rock_obs.ore_quals)
     for s in sampled_particles
         mainbody_param = s.mainbody_params
         mainbody_map = s.mainbody_map
         ore_map = s.ore_map
+        gp_ore_map = ore_map - mainbody_map
         if apply_perturbation
             if mainbody_param ∈ mainbody_params
                 mainbody_map, mainbody_param = perturb_sample(up.m.mainbody_gen, mainbody_param, up.noise)
@@ -129,10 +129,10 @@ function resample(up::MEBeliefUpdater, particles::Vector, wp::Vector{Float64},
             push!(n_ore_quals, n_ore_qual)
         end
         geostats.data.ore_quals = n_ore_quals
-        if apply_perturbation
+        if resample_background_noise
             gp_ore_map = Base.rand(up.rng, geostats)
-            ore_map = gp_ore_map .+ mainbody_map
         end
+        ore_map = gp_ore_map .+ mainbody_map
         rock_obs_p = RockObservations(rock_obs.ore_quals, rock_obs.coordinates)
         sp = MEState(ore_map, mainbody_param, mainbody_map, rock_obs_p,
                     o.stopped, o.decided)
@@ -165,9 +165,7 @@ end
 function reweight_abc(up::MEBeliefUpdater, particles::Vector, rock_obs::RockObservations)
     ws = Float64[]
     ϵ = up.abc_ϵ
-    dist_mse(x, y) = (x - y)^2
-    dist_abs(x, y) = abs(x - y)
-    rho = dist_mse
+    rho = abc.dist
     ore_quals = deepcopy(rock_obs.ore_quals)
     actions = deepcopy(rock_obs.coordinates)
     for particle in particles
@@ -176,20 +174,21 @@ function reweight_abc(up::MEBeliefUpdater, particles::Vector, rock_obs::RockObse
             for o in ore_quals
                 b_o = particle.ore_map[a[1], a[2]]
                 w = rho(b_o, o)
-                w *= w ≤ ϵ ? w : 0 # 1e-8 # acceptance tolerance
+                w = w ≤ ϵ ? w : 0 # acceptance tolerance
             end
         end
         push!(ws, w)
     end
     ws .+= 1e-6
     normalize!(ws, 1)
+    # effective_particles = 1 / sum(ws .^ 2); @show effective_particles
     return ws
 end
 
 function update_particles_abc(up::MEBeliefUpdater, particles::Vector{MEState},
                               geostats::GeoDist, rock_obs::RockObservations, a::MEAction, o::MEObservation)
     wp = reweight_abc(up, particles, rock_obs)
-    pp = resample(up, particles, wp, geostats, rock_obs, a, o; apply_perturbation=false)
+    pp = resample(up, particles, wp, geostats, rock_obs, a, o; apply_perturbation=false, resample_background_noise=false)
     return pp
 end
 
