@@ -165,7 +165,7 @@ end
 function reweight_abc(up::MEBeliefUpdater, particles::Vector, rock_obs::RockObservations)
     ws = Float64[]
     ϵ = up.abc_ϵ
-    rho = abc.dist
+    rho = up.abc_dist
     ore_quals = deepcopy(rock_obs.ore_quals)
     actions = deepcopy(rock_obs.coordinates)
     for particle in particles
