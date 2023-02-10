@@ -56,7 +56,7 @@ queue = POMDPSimulators.Sim[]
 for i = 1:N_SIM
     s0 = rand(ds0)
     s_massive = s0.ore_map[:,:,1] .>= m.massive_threshold
-    r_massive = sum(s_massive)
+    r_massive = m.dim_scale*sum(s_massive)
     push!(queue, POMDPSimulators.Sim(m, planner, up, b0, s0, metadata=Dict(:massive_ore=>r_massive)))
 end
 

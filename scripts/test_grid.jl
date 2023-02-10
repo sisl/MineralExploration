@@ -48,11 +48,11 @@ for n in GRIDS
         end
         s0 = rand(ds0)
         s_massive = s0.ore_map .>= m.massive_threshold
-        r_massive = sum(s_massive)
+        r_massive = m.dim_scale*sum(s_massive)
         println("Massive Ore: $r_massive")
         h = simulate(hr, m, policy, up, b0, s0)
         b = h[end][:b]
-        b_vol = [sum(p.ore_map .>= m.massive_threshold) for p in b.particles]
+        b_vol = [calc_massive(m, p) for p in b.particles]
         vol_error = mean(b_vol .- r_massive)
         vol_std = std(b_vol)
         push!(ME, vol_error)
@@ -70,7 +70,7 @@ for n in GRIDS
         # errors = Float64[]
         # for step in h
         #     b = step[:b]
-        #     b_vol = [sum(p.ore_map .>= m.massive_threshold) for p in b.particles]
+        #     b_vol = [calc_massive(m, p) for p in b.particles]
         #     push!(errors, mean(b_vol .- s_massive))
         # end
         # push!(ME, errors)

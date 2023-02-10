@@ -73,7 +73,7 @@ fig = heatmap(s0.ore_map[:,:,1], title="True Ore Field", fill=true, clims=(0.0, 
 display(fig)
 
 s_massive = s0.ore_map .>= m.massive_threshold
-r_massive = sum(s_massive)
+r_massive = m.dim_scale*sum(s_massive)
 println("Massive ore: $r_massive")
 println("MB Variance: $(s0.mainbody_params)")
 
@@ -89,7 +89,7 @@ display(fig)
 # std_vars = std(vars)
 # println("Vars: $mean_vars ± $std_vars")
 #
-vols = [sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
+vols = [calc_massive(m, p) for p in b0.particles]
 mean_vols = mean(vols)
 std_vols = std(vols)
 println("Vols: $mean_vols ± $std_vols")
@@ -136,8 +136,7 @@ for (sp, a, r, bp, t) in stepthrough(m, planner, up, b0, s0, "sp,a,r,bp,t", max_
     @show r
     @show sp.stopped
     @show bp.stopped
-    volumes = [sum(p.ore_map .>= m.massive_threshold) for p in bp.particles]
-    # volumes = Float64[sum(p[2][:,:,1] .>= m.massive_threshold) for p in bp.particles]
+    volumes = [calc_massive(m, p) for p in bp.particles]
     mean_volume = mean(volumes)
     std_volume = std(volumes)
     volume_lcb = mean_volume - 1.0*std_volume

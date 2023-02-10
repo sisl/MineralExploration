@@ -71,7 +71,7 @@ for i = 1:N
     push!(vol_stds, results[4])
     push!(n_drills, results[5])
     true_ore = s0.ore_map
-    massive_ore = s0.ore_map .>= m.massive_threshold
+    massive_ore = calc_massive(m, s0)
     noise_ore = s0.ore_map - s0.mainbody_map
     path = string(SAVE_DIR, "true_ore.txt")
     open(path, "a") do io

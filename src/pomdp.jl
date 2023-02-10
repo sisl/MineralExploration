@@ -124,6 +124,7 @@ function normalize_and_weight(lode_map::AbstractArray, mainbody_weight::Real)
     return lode_map
 end
 
+calc_massive(pomdp::MineralExplorationPOMDP, s::MEState) = calc_massive(s.ore_map, pomdp.massive_threshold, pomdp.dim_scale)
 function calc_massive(ore_map::AbstractArray, massive_threshold::Real, dim_scale::Real)
     return dim_scale*sum(ore_map .>= massive_threshold)
 end

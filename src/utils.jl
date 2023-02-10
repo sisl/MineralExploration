@@ -250,7 +250,7 @@ function plot_mass_map(ore_map, massive_threshold, cmap=:viridis; dim_scale=1, t
 end
 
 function plot_volume(m::MineralExplorationPOMDP, b0::MEBelief, r_massive::Real; t=0, verbose::Bool=true)
-    vols = [m.dim_scale*sum(p.ore_map .>= m.massive_threshold) for p in b0.particles]
+    vols = [calc_massive(m, p) for p in b0.particles]
     mean_vols = round(mean(vols), digits=2)
     std_vols = round(std(vols), digits=2)
     if verbose

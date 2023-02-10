@@ -77,7 +77,7 @@ for (sp, a, r, bp, t) in stepthrough(m, policy, up, b0, s0, "sp,a,r,bp,t", max_s
     @show sp.stopped
     @show bp.stopped
 
-    volumes = Float64[sum(p.ore_map[:,:,1] .>= m.massive_threshold) for p in bp.particles]
+    volumes = Float64[calc_massive(m, p) for p in bp.particles]
     mean_volume = mean(volumes)
     std_volume = std(volumes)
     volume_lcb = mean_volume - 1.0*std_volume

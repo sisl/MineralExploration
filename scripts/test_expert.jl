@@ -42,7 +42,7 @@ for i in 1:N
     end
     s0 = rand(ds0)
     s_massive = s0.ore_map .>= m.massive_threshold
-    r_massive = sum(s_massive)
+    r_massive = m.dim_scale*sum(s_massive)
     println("Massive Ore: $r_massive")
     h = simulate(hr, m, policy, up, b0, s0)
     v = 0.0
@@ -59,7 +59,7 @@ for i in 1:N
     stds = Float64[]
     for step in h
         b = step[:b]
-        b_vol = [sum(p.ore_map .>= m.massive_threshold) for p in b.particles]
+        b_vol = [calc_massive(m, p) for p in b.particles]
         push!(errors, mean(b_vol .- r_massive))
         push!(stds, std(b_vol))
     end

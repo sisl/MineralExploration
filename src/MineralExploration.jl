@@ -67,7 +67,8 @@ include("beliefs.jl")
 
 export
         initialize_data!,
-        high_fidelity_obs
+        high_fidelity_obs,
+        calc_massive
 include("pomdp.jl")
 
 export
@@ -106,9 +107,5 @@ export
         plot_mass_map,
         plot_volume
 include("utils.jl")
-
-export
-        BeliefMDP
-include("belief_mdp.jl")
 
 end

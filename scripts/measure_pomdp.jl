@@ -20,7 +20,7 @@ println("Initializing belief...")
 # b0 = POMDPs.initialize_belief(up, ds0)
 println("Belief Initialized!")
 
-volumes = [sum(b.ore_map[:,:,1] .>= m.massive_threshold) for b in b0.particles.particles]
+volumes = [calc_massive(m, b) for b in b0.particles.particles]
 mean_vol = mean(volumes)
 std_vol = MineralExploration.std(volumes)
 se_vol = std_vol/sqrt(N)

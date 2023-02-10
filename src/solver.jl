@@ -25,12 +25,16 @@ function belief_scores(m, v)
     return scores
 end
 
+using Infiltrator
+
 function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMDP,
                             b::MEBelief, h)
     if h.tree isa POMCPOWTree
         tried_idxs = h.tree.tried[h.node]
     elseif h.tree isa MCTS.DPWTree
         tried_idxs = h.tree.children[h.index]
+    else
+        tried_idxs = h
     end
     action_set = POMDPs.actions(pomdp, b)
     if b.stopped
@@ -42,8 +46,7 @@ function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMD
     else
         volumes = Float64[]
         for s in b.particles
-            s_massive = s.ore_map .>= pomdp.massive_threshold
-            v = sum(s_massive)
+            v = calc_massive(pomdp, s)
             push!(volumes, v)
         end
         # volumes = Float64[sum(p[2]) for p in b.particles]
@@ -132,8 +135,7 @@ end
 function POMDPs.action(p::ExpertPolicy, b::MEBelief)
     volumes = Float64[]
     for s in b.particles
-        s_massive = s.ore_map .>= p.m.massive_threshold
-        v = sum(s_massive)
+        v = calc_massive(p.m, s)
         push!(volumes, v)
     end
     # volumes = Float64[sum(p[2]) for p in b.particles]
@@ -224,7 +226,7 @@ function POMDPs.action(p::GridPolicy, b::MEBelief)
     if b.stopped
         volumes = Float64[]
         for s in b.particles
-            v = sum(s.ore_map[:, :, 1] .>= p.m.massive_threshold)
+            v = calc_massive(p.m, s)
             push!(volumes, v)
         end
         mean_volume = Statistics.mean(volumes)
