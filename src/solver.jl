@@ -29,12 +29,12 @@ using Infiltrator
 
 function POMCPOW.next_action(o::NextActionSampler, pomdp::MineralExplorationPOMDP,
                             b::MEBelief, h)
-    if h.tree isa POMCPOWTree
+    if h isa Vector
+        tried_idxs = h
+    elseif h.tree isa POMCPOWTree
         tried_idxs = h.tree.tried[h.node]
     elseif h.tree isa MCTS.DPWTree
         tried_idxs = h.tree.children[h.index]
-    else
-        tried_idxs = h
     end
     action_set = POMDPs.actions(pomdp, b)
     if b.stopped
