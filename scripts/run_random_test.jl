@@ -35,7 +35,7 @@ function run_test(SAVE_DIR, CASE_DIR, MAX_MOVEMENT, MAINBODY_STR, display_figs=f
     m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spacing=GRID_SPACING,
                                 mainbody_gen=mainbody, max_movement=MAX_MOVEMENT)
     initialize_data!(m, N_INITIAL)
-    ds0 = POMDPs.initialstate_distribution(m)
+    ds0 = POMDPs.initialstate(m)
 
     s0s = nothing
     if isfile(CASE_DIR)

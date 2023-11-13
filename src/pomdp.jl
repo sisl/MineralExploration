@@ -74,7 +74,7 @@ end
 POMDPs.discount(::MineralExplorationPOMDP) = 0.99
 POMDPs.isterminal(m::MineralExplorationPOMDP, s::MEState) = s.decided
 
-function POMDPs.initialstate_distribution(m::MineralExplorationPOMDP)
+function POMDPs.initialstate(m::MineralExplorationPOMDP)
     true_gp_dist = m.geodist_type(m; truth=true)
     gp_dist = m.geodist_type(m)
     MEInitStateDist(true_gp_dist, gp_dist, m.mainbody_weight,

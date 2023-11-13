@@ -18,7 +18,7 @@ MAX_BORES = 10
 m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=1)
 initialize_data!(m, N_INITIAL)
 
-ds0 = POMDPs.initialstate_distribution(m)
+ds0 = POMDPs.initialstate(m)
 s0 = rand(ds0)
 
 up = MEBeliefUpdater(m, 100)

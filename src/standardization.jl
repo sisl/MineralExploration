@@ -93,7 +93,7 @@ function generate_ore_mass_samples(grid_dims, shape_types; N=1000, apply_scale=t
 end
 
 function generate_ore_mass_samples(m; N=1000, apply_scale=true)
-    ds0 = POMDPs.initialstate_distribution(m)
+    ds0 = POMDPs.initialstate(m)
     samples = []
     masses = []
     params = []

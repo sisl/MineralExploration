@@ -42,7 +42,7 @@ m = MineralExplorationPOMDP(max_bores=MAX_BORES, delta=GRID_SPACING+1, grid_spac
 initialize_data!(m, N_INITIAL)
 @show m.max_movement
 
-ds0 = POMDPs.initialstate_distribution(m)
+ds0 = POMDPs.initialstate(m)
 s0 = rand(ds0; truth=true)
 
 Random.seed!(52992) # restart determinism
