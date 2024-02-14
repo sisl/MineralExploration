@@ -95,4 +95,4 @@ end
 ```
 In the above code, `...` denotes code from the original script that was omitted for brevity here. 
 
-Note: To save data, the defalut location is a `data` folder in the source code home directory. To change this, change the file path strings referenced in the script. 
+Note: To save data, the default location is a `data` folder in the source code home directory. To change this, change the file path strings referenced in the script. 
