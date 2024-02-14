@@ -11,7 +11,7 @@ The package can be installed using the standard Julia package manager utility `a
  ```
  ] add . 
  ```
- If you would like to develop within the code base, we recommend building the source directly within a virtual environment. The requireed packages can be installed using the Julia `build` command from the source home directory. 
+ If you would like to develop within the code base, we recommend building the source directly within a virtual environment. The required packages can be installed using the Julia `build` command from the source home directory. 
 
 ## Code Organization
 All of the source code is in the `src` directory. The `MineralExploration.jl` file defines the main module strucutre. In this file, the source for all of the exposed structures and functions can be located. The `parameters` directory contains the data used to fit the variograms in the published experiments. The `scripts` directory contains the scripts to run the expeirments and tests. 
